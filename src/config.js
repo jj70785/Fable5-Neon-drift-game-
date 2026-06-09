@@ -79,6 +79,8 @@ export const CONFIG = {
     CHAIN_WINDOW: 1.5,      // s between drifts to keep the chain alive
     MULT_MAX: 8,            // multiplier cap ×1 → ×8
     DRIFT_ATTACK_TIME: 120, // s round length
+    MIN_SPEED: 160,         // px/s below which a drift stops scoring
+    MIN_SLIP: 0.16,         // rad (~9°) below which a drift stops scoring
   },
 
   // --- particles ---------------------------------------------------------------

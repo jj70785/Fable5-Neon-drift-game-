@@ -11,6 +11,7 @@ import { Input } from './input.js';
 import { UI, fmtTime } from './ui.js';
 import { Car } from './physics.js';
 import { TRACK_DEFS, getTrack } from './track.js';
+import { DriftScore } from './drift.js';
 
 const STATE = {
   TITLE: 'title',
@@ -176,6 +177,7 @@ class Game {
     this.mode = 'time';
     this.track = null;
     this.car = new Car();
+    this.drift = new DriftScore();
     this.race = null;
     this._respawnQueued = false;
     this._respawnCd = 0;
@@ -238,6 +240,7 @@ class Game {
       get state() { return self.state; },
       get phase() { return self.race ? self.race.phase : null; },
       get car() { return self.car; },
+      get drift() { return self.drift; },
       get fpsAvg() { return self.fpsAvg; },
       get particlesLive() { return 0; },
       test: {
@@ -283,6 +286,7 @@ class Game {
 
     const sp = this.track.startPose;
     this.car.reset(sp.x, sp.y, sp.heading);
+    this.drift.reset();
     this.acc = 0; this.alpha = 1;
     this.timeScale = 1; this.slowmo = 0;
     this._respawnQueued = false; this._respawnCd = 0;
@@ -368,6 +372,14 @@ class Game {
         storage.set(key, { total: race.total, laps: race.lapTimes.slice(), splits: race.splits.slice() });
       }
       race.prevBest = prev ? prev.total : null;
+    } else if (this.mode === 'drift') {
+      this.drift.flush();
+      if (this.drift.banked > 0) this._onBank(this.drift.banked, this.drift.mult);
+      const key = `drift.${this.track.def.id}`;
+      const prev = storage.get(key, null);
+      race.isNewBest = !prev || this.drift.total > prev;
+      if (race.isNewBest && this.drift.total > 0) storage.set(key, this.drift.total);
+      race.prevBest = prev;
     }
   }
 
@@ -395,13 +407,16 @@ class Game {
         ],
       });
     } else {
+      const score = this.drift.total;
+      const lines = [`BIGGEST CHAIN   +${this.drift.bestChain.toLocaleString('en-US')}`];
+      if (race.prevBest) lines.push(`PREVIOUS BEST   ${Math.floor(race.prevBest).toLocaleString('en-US')}`);
       this.ui.showResults({
         title: 'TIME UP',
-        main: '0',
-        isNewBest: false,
+        main: Math.floor(score).toLocaleString('en-US'),
+        isNewBest: !!race.isNewBest && score > 0,
         medal: null,
-        lines: [],
-        targets: [],
+        lines,
+        targets: [`${this.track.name} · DRIFT ATTACK`],
       });
     }
   }
@@ -562,6 +577,13 @@ class Game {
     if (race.phase === 'running') {
       race.time += h;
 
+      if (this.mode === 'drift') {
+        this.drift.step(h, car, impact);
+        if (this.drift.banked > 0) this._onBank(this.drift.banked, this.drift.mult);
+        if (this.drift.forfeited > 1) this._onForfeit(this.drift.forfeited);
+        if (this.drift.multUp) this.ui.setDriftPending(this.drift.pending, this.drift.mult);
+      }
+
       // checkpoint gates: must be crossed in order (blocks shortcuts)
       if (this.track.crossedGate(race.expected, car.prevX, car.prevY, car.x, car.y)) {
         race.lastGate = race.expected;
@@ -590,6 +612,28 @@ class Game {
       const amp = clamp(impact * W.SHAKE_SCALE, 0, 1) * W.SHAKE_MAX;
       if (amp > this.cam.shakeAmp) this.cam.shakeAmp = amp;
     }
+  }
+
+  // world → screen (css px) for popup placement
+  _toScreen(wx, wy, out) {
+    const cam = this.cam;
+    out.x = (wx - cam.x) * cam.zoom + this.w / 2;
+    out.y = (wy - cam.y) * cam.zoom + this.h / 2;
+    return out;
+  }
+
+  _onBank(points, mult) {
+    const p = this._toScreen(this.car.x, this.car.y - 40, this._popTmp || (this._popTmp = { x: 0, y: 0 }));
+    const text = mult > 1
+      ? `+${points.toLocaleString('en-US')} ×${mult}!`
+      : `+${points.toLocaleString('en-US')}`;
+    this.ui.spawnPopup(p.x, p.y, text, false);
+    this.ui.bumpScore();
+  }
+
+  _onForfeit(points) {
+    const p = this._toScreen(this.car.x, this.car.y - 40, this._popTmp || (this._popTmp = { x: 0, y: 0 }));
+    this.ui.spawnPopup(p.x, p.y, `${Math.floor(points).toLocaleString('en-US')} LOST`, true);
   }
 
   // ---------------------------------------------------------------- render
@@ -743,8 +787,10 @@ class Game {
     } else {
       const r = Math.max(0, race.remaining);
       const m = Math.floor(r / 60), s = Math.floor(r % 60);
-      ui.setDriftTimer(`${m}:${s < 10 ? '0' : ''}${s}`, r < 15);
+      ui.setDriftTimer(`${m}:${s < 10 ? '0' : ''}${s}`, r < 15 && race.phase === 'running');
       ui.setTime(fmtTime(race.time));
+      ui.setDriftScore(this.drift.total);
+      ui.setDriftPending(this.drift.pending * this.drift.mult, this.drift.mult);
     }
   }
 
