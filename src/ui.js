@@ -27,6 +27,7 @@ export class UI {
       modeTime: $('mode-time'), modeDrift: $('mode-drift'), modeDesc: $('mode-desc'),
       trackRow: $('track-row'),
       setMusic: $('set-music'), setSfx: $('set-sfx'), setShake: $('set-shake'),
+      setHaptics: $('set-haptics'),
       resultsTitle: $('results-title'), resultsNewBest: $('results-new-best'),
       resultsMain: $('results-main'), resultsMedal: $('results-medal'),
       resultsLaps: $('results-laps'), resultsTargets: $('results-targets'),
@@ -61,6 +62,8 @@ export class UI {
     this.el.setMusic.addEventListener('click', () => cb.onSetting('music'));
     this.el.setSfx.addEventListener('click', () => cb.onSetting('sfx'));
     this.el.setShake.addEventListener('click', () => cb.onSetting('shake'));
+    this.el.setHaptics.addEventListener('click', () => cb.onSetting('haptics'));
+    if (!navigator.vibrate) this.el.setHaptics.style.display = 'none';
   }
 
   setMode(mode) {
@@ -80,6 +83,8 @@ export class UI {
     this.el.setSfx.classList.toggle('off', !s.sfx);
     this.el.setShake.textContent = s.shake ? 'SHAKE ON' : 'SHAKE OFF';
     this.el.setShake.classList.toggle('off', !s.shake);
+    this.el.setHaptics.textContent = s.haptics ? 'HAPTICS ON' : 'HAPTICS OFF';
+    this.el.setHaptics.classList.toggle('off', !s.haptics);
   }
 
   // info: [{name, diff, thumb (canvas|null), bestText, medals:[{tier,label,earned}]}]

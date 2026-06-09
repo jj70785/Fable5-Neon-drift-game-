@@ -161,9 +161,11 @@ class Game {
     this._dbgTimer = 0;
     this.debugOn = false;
 
-    this.settings = Object.assign({ music: true, sfx: true, shake: true },
+    this.settings = Object.assign({ music: true, sfx: true, shake: true, haptics: true },
       storage.get('settings', {}));
     this.muted = !!storage.get('muted', false);
+    this._wakeLock = null;
+    this._lastBuzz = 0;
 
     this.audio = new AudioEngine();
     this.audio.muted = this.muted;
@@ -263,6 +265,13 @@ class Game {
     this.ui.reflectSettings(this.settings);
     this.ui.showScreen('title');
     this.refreshTrackCards();
+
+    // installable PWA: offline cache (no-op over file:// or unsupported)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
 
     // dev/test hooks (tiny; also used by the smoke test)
     const self = this;
@@ -374,6 +383,36 @@ class Game {
     this.ui.showTouch(!!this._touchUI || this.input.touchActive);
     this.setState(STATE.RACE);
     this.audio.uiSelect();
+
+    // mobile: go fullscreen + keep the screen awake during a race
+    if (this.input.touchActive || this._touchUI) {
+      const el = document.getElementById('game');
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+      }
+      this._grabWakeLock();
+    }
+  }
+
+  _grabWakeLock() {
+    if (!navigator.wakeLock || this._wakeLock) return;
+    navigator.wakeLock.request('screen').then((lock) => {
+      this._wakeLock = lock;
+      lock.addEventListener('release', () => { this._wakeLock = null; });
+    }).catch(() => {});
+  }
+
+  _dropWakeLock() {
+    if (this._wakeLock) { this._wakeLock.release().catch(() => {}); this._wakeLock = null; }
+  }
+
+  // tiny vibration cues on supported phones (settings-gated, rate-limited)
+  _buzz(ms) {
+    if (!this.settings.haptics || !navigator.vibrate) return;
+    const now = performance.now();
+    if (now - this._lastBuzz < 90) return;
+    this._lastBuzz = now;
+    try { navigator.vibrate(ms); } catch (e) { /* blocked — fine */ }
   }
 
   restartRace() { if (this.race) this.startRace(this.trackIndex, this.mode); }
@@ -381,6 +420,7 @@ class Game {
   quitToSelect() {
     this.race = null;
     this.audio.engineOff();
+    this._dropWakeLock();
     this.ui.showHud(false);
     this.ui.showTouch(false);
     this.ui.setCountdown(null);
@@ -409,6 +449,8 @@ class Game {
     this.setState(STATE.RACE);
     this.ui.showScreen(null);
     this._last = performance.now();
+    // wake locks auto-release when the tab hides — re-arm for touch players
+    if (this.input.touchActive || this._touchUI) this._grabWakeLock();
   }
 
   finishRace() {
@@ -741,6 +783,7 @@ class Game {
         this._lastHitSound = now;
         this.audio.wallHit(clamp(impact / 700, 0, 1));
       }
+      this._buzz(impact > 350 ? 28 : 12);
     }
   }
 
@@ -760,6 +803,7 @@ class Game {
     this.ui.spawnPopup(p.x, p.y, text, false);
     this.ui.bumpScore();
     this.audio.bank(mult);
+    this._buzz(8);
   }
 
   _onForfeit(points) {

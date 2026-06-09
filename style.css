@@ -141,9 +141,20 @@ html, body {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 
 #title-credit {
-  position: absolute; bottom: 16px;
+  position: absolute; bottom: max(16px, env(safe-area-inset-bottom));
   font-size: 12px; letter-spacing: 0.18em;
   color: rgba(244,247,255,0.55);
+}
+
+#title-rotate {
+  display: none;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  color: rgba(255,225,77,0.75);
+  text-shadow: 0 0 8px rgba(255,225,77,0.4);
+}
+@media (orientation: portrait) and (pointer: coarse) {
+  #title-rotate { display: block; animation: pulse 2.4s ease-in-out infinite; }
 }
 
 /* ---------------- buttons ---------------- */
@@ -380,10 +391,10 @@ html, body {
 .touch-btn:active { background: rgba(0, 240, 255, 0.28); }
 
 #touch-steer { position: absolute; left: 0; bottom: 0; }
-#btn-left  { left: 18px;  bottom: 24px; }
-#btn-right { left: 116px; bottom: 24px; }
+#btn-left  { left: max(18px, env(safe-area-inset-left));  bottom: max(24px, env(safe-area-inset-bottom)); }
+#btn-right { left: calc(max(18px, env(safe-area-inset-left)) + 98px); bottom: max(24px, env(safe-area-inset-bottom)); }
 #btn-brake {
-  right: 20px; bottom: 24px;
+  right: max(20px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom));
   width: 104px; height: 104px;
   font-size: 17px; letter-spacing: 0.12em;
   border-color: rgba(255,45,149,0.8);

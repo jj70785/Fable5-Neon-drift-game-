@@ -44,6 +44,20 @@ Throttle is automatic. Steer with the **◀ ▶** buttons (bottom-left), hold
 the big **DRIFT** button (bottom-right) to slide — steering while holding
 it works, it's all multi-touch. Respawn ↺ and pause Ⅱ sit at the top.
 
+## Install it like an app (PWA)
+
+NEON DRIFT is an installable Progressive Web App: once you've opened it in
+a browser, it caches itself and **plays fully offline**.
+
+- **Android (Chrome):** open the game URL → menu ⋮ → **Add to Home screen**
+  (or tap the install prompt). Launches fullscreen with its own icon.
+- **iPhone/iPad (Safari):** open the game URL → Share □↑ → **Add to Home
+  Screen**. Launches standalone without browser chrome.
+
+Races also request fullscreen, keep the screen awake, and give little
+haptic buzzes on wall hits and banked drifts (toggle **HAPTICS** in the
+track-select settings).
+
 **Drift like you mean it:** flick the handbrake while turning, then
 counter-steer to hold the slide. Clean exits bank your points; chain the
 next drift quickly to grow the multiplier.
