@@ -23,7 +23,14 @@ export class Input {
   attach() {
     window.addEventListener('keydown', (e) => this._onKey(e, true), { passive: false });
     window.addEventListener('keyup', (e) => this._onKey(e, false), { passive: false });
-    window.addEventListener('pointerdown', () => this._gesture(), { capture: true });
+    window.addEventListener('pointerdown', (e) => {
+      this._gesture();
+      // "press any key / tap to start" — but a tap on a real button is that
+      // button's action, not an "any" press (it would leak into the next screen)
+      const onButton = e.target && e.target.closest && e.target.closest('button');
+      if (!onButton) this.edges.add('any');
+      if (e.pointerType === 'touch') this.touchActive = true;
+    }, { capture: true });
     window.addEventListener('blur', () => this.releaseAll());
   }
 
