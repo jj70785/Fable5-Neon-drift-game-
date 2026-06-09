@@ -2,7 +2,7 @@ name: Deploy NEON DRIFT to GitHub Pages
 
 on:
   push:
-    branches: [claude/mobile-pwa]
+    branches: [claude/eager-dijkstra-d0qzg9]
   workflow_dispatch:
 
 permissions:
