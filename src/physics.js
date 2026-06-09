@@ -107,7 +107,7 @@ export class Car {
     // ---- lateral grip ----
     let grip = this.drifting ? C.GRIP_FULL * C.GRIP_DRIFT_FRAC : C.GRIP_FULL;
     // beyond ~45° the tires dig in harder: caps sustainable slip, kills spins
-    if (absSlip > 0.8) grip *= 1 + (absSlip - 0.8) * 1.7;
+    if (absSlip > C.MAX_SLIP_SOFT) grip *= 1 + (absSlip - C.MAX_SLIP_SOFT) * 2.4;
     vL *= Math.exp(-grip * dt);
 
     // recompose velocity with the PRE-steer basis (velocity must not rotate
@@ -127,7 +127,17 @@ export class Car {
       yawAuth *= C.DRIFT_YAW_BOOST;                              // counter-steer authority
       if (handbrake && absSlip < 0.35) yawAuth *= 1 + C.HANDBRAKE_KICK; // snappy initiation
     }
-    let turn = steer * yawAuth;
+    let steerEff = steer;
+    // Steering deeper INTO an already-deep slide loses authority, so the
+    // slide angle saturates near ~45-55° instead of spinning out.
+    // Counter-steer keeps full authority — a drift is always recoverable.
+    // Sign note (y-down coords): steering left is steer<0 and produces
+    // slip>0, so "deepening the slide" is steer*slip < 0.
+    if (this.drifting && steer * slip < 0 && absSlip > C.SLIP_STEER_FADE) {
+      const fade = 1 - (absSlip - C.SLIP_STEER_FADE) / 0.4;
+      steerEff = steer * Math.max(0.08, Math.min(1, fade));
+    }
+    let turn = steerEff * yawAuth;
     if (vF < -1) turn = -turn;                                   // mirrored in reverse
     if (this.drifting) turn += slip * C.DRIFT_ALIGN;             // recovery assist
 

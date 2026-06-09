@@ -37,14 +37,16 @@ export const CONFIG = {
     STEER_REF_SPEED: 150,   // px/s where steering reaches full authority
     HIGH_SPEED_DAMP: 0.5,   // how much steering softens at top speed (0..1)
     DRIFT_YAW_BOOST: 1.6,   // extra yaw authority while drifting (counter-steer)
-    DRIFT_ALIGN: 0.7,       // passive heading→velocity alignment in drift, 1/s
+    DRIFT_ALIGN: 0.9,       // passive heading→velocity alignment in drift, 1/s
                             //   (makes slides recoverable; the key feel knob)
 
     DRIFT_ENTER_SLIP: 0.27, // rad (~15.5°) slip angle that triggers drift
     DRIFT_EXIT_SLIP: 0.10,  // rad slip below which drift can end
     DRIFT_EXIT_TIME: 0.18,  // s of low slip required to exit drift
     DRIFT_MIN_SPEED: 130,   // px/s minimum forward speed to start/stay drifting
-    HANDBRAKE_KICK: 0.55,   // instant yaw kick (rad/s) when handbrake starts a drift
+    HANDBRAKE_KICK: 0.25,   // extra yaw fraction while initiating with handbrake
+    MAX_SLIP_SOFT: 0.78,    // rad (~45°): past this, tires dig in hard (max sustainable)
+    SLIP_STEER_FADE: 0.5,   // rad: steering INTO the slide fades beyond this slip
   },
 
   // --- wall collisions -------------------------------------------------------
