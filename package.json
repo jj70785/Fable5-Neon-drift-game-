@@ -1,0 +1,15 @@
+{
+  "name": "neon-drift",
+  "version": "1.0.0",
+  "description": "NEON DRIFT — a synthwave arcade drift racing game. Vanilla JS + Canvas 2D, zero runtime dependencies.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/smoke.test.js",
+    "serve": "python3 -m http.server 8080"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
