@@ -486,8 +486,12 @@ export class Track {
           const dist = Math.hypot(dx, dy);
           const nx = segs[o + 4], ny = segs[o + 5];
           const side = dx * nx + dy * ny; // >0: circle center on track side
+          // Tunneling in one 120 Hz step is ≤ ~6 px, so only snap back when
+          // the center is just past the line. A center far on the "wrong"
+          // side belongs to ANOTHER track section running nearby — ignore.
+          if (side < 0 && dist > 10) continue;
           const pen = r - (side >= 0 ? dist : -dist);
-          if (pen > 0 && pen < this.width) {
+          if (pen > 0) {
             const impact = resolveWallHit(car, nx, ny, pen);
             if (impact > maxImpact) maxImpact = impact;
             const lh = this.lastHit;

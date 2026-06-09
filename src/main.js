@@ -8,13 +8,14 @@
 import { CONFIG } from './config.js';
 import { storage } from './storage.js';
 import { Input } from './input.js';
-import { UI, fmtTime } from './ui.js';
+import { UI, fmtTime, fmtDelta } from './ui.js';
 import { Car } from './physics.js';
 import { TRACK_DEFS, getTrack } from './track.js';
 import { DriftScore } from './drift.js';
 import { Particles } from './particles.js';
 import { SkidMarks } from './skidmarks.js';
 import { AudioEngine } from './audio.js';
+import { GhostRecorder, GhostPlayer, saveGhost, loadGhost } from './ghost.js';
 
 const STATE = {
   TITLE: 'title',
@@ -190,6 +191,9 @@ class Game {
     this.particles = new Particles();
     this.skids = new SkidMarks();
     this._wheels = { lx: 0, ly: 0, rx: 0, ry: 0 };
+    this.ghostRec = new GhostRecorder();
+    this.ghostPlay = new GhostPlayer();
+    this._ghostPose = { x: 0, y: 0, heading: 0, done: false };
     this.race = null;
     this._respawnQueued = false;
     this._respawnCd = 0;
@@ -259,6 +263,7 @@ class Game {
     window.__NEON = {
       version: '1.0.0',
       game: self,
+      config: CONFIG,
       get state() { return self.state; },
       get phase() { return self.race ? self.race.phase : null; },
       get car() { return self.car; },
@@ -333,7 +338,20 @@ class Game {
       finishT: 0,
       resultsShown: false,
       total: 0,
+      deltaTimer: 0,
+      bestSplits: null,
     };
+
+    // ghost: replay the saved best, record this run (Time Trial only)
+    if (this.mode === 'time') {
+      this.ghostPlay.load(loadGhost(this.track.def.id));
+      this.ghostRec.start();
+      const best = storage.get(`best.${this.track.def.id}`, null);
+      if (best && best.splits && best.splits.length) this.race.bestSplits = best.splits;
+    } else {
+      this.ghostPlay.load(null);
+      this.ghostRec.stop();
+    }
 
     this.cam.x = sp.x; this.cam.y = sp.y;
     this.cam.zoom = this.viewScale * CONFIG.CAMERA.ZOOM_BASE;
@@ -403,6 +421,8 @@ class Game {
       race.isNewBest = !prev || race.total < prev.total;
       if (race.isNewBest) {
         storage.set(key, { total: race.total, laps: race.lapTimes.slice(), splits: race.splits.slice() });
+        this.ghostRec.stop();
+        saveGhost(this.track.def.id, this.ghostRec);
       }
       race.prevBest = prev ? prev.total : null;
     } else if (this.mode === 'drift') {
@@ -597,6 +617,7 @@ class Game {
       race.goTimer -= rdt;
       if (race.goTimer <= 0) this.ui.setCountdown(null);
     }
+    if (race.deltaTimer > 0) race.deltaTimer -= rdt;
     if (race.phase === 'finished' && !race.resultsShown) {
       race.finishT += rdt;
       if (race.finishT > 1.35) this._showResultsNow();
@@ -647,6 +668,7 @@ class Game {
 
     if (race.phase === 'running') {
       race.time += h;
+      if (this.mode === 'time') this.ghostRec.sample(h, car);
 
       if (this.mode === 'drift') {
         this.drift.step(h, car, impact);
@@ -661,6 +683,11 @@ class Game {
       // checkpoint gates: must be crossed in order (blocks shortcuts)
       if (this.track.crossedGate(race.expected, car.prevX, car.prevY, car.x, car.y)) {
         race.lastGate = race.expected;
+        // live delta vs the best run's split at this same gate index
+        if (race.bestSplits && race.splits.length < race.bestSplits.length) {
+          race.delta = race.time - race.bestSplits[race.splits.length];
+          race.deltaTimer = 2.6;
+        }
         race.splits.push(race.time);
         if (race.expected === 0) {
           const lapT = race.time - race.lapStart;
@@ -808,6 +835,21 @@ class Game {
     // smoke billows under the car body
     this.particles.drawUnder(ctx);
 
+    // ghost replay (Time Trial)
+    let ghostDrawn = false;
+    if (this.ghostPlay.active && this.race && this.mode === 'time') {
+      const gp = this.ghostPlay.poseAt(this.race.time, this._ghostPose);
+      if (!gp.done || this.race.phase !== 'finished') {
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.translate(gp.x, gp.y);
+        ctx.rotate(gp.heading);
+        ctx.drawImage(this.ghostSprite, -35, -35, 70, 70);
+        ctx.restore();
+        ghostDrawn = true;
+      }
+    }
+
     // car shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
@@ -825,7 +867,7 @@ class Game {
     this.particles.drawOver(ctx);
 
     // minimap
-    this._drawMinimap(ix, iy);
+    this._drawMinimap(ix, iy, ghostDrawn ? this._ghostPose : null);
   }
 
   _strokeChunks(ctx, chunks, strokes, left, top, right, bottom) {
@@ -866,7 +908,7 @@ class Game {
     ctx.stroke();
   }
 
-  _drawMinimap(carX, carY) {
+  _drawMinimap(carX, carY, ghostPose) {
     const g = this.miniCtx;
     if (!g) return;
     const track = this.track;
@@ -874,6 +916,11 @@ class Game {
     g.clearRect(0, 0, 440, 320);
     g.drawImage(track.mini.canvas, 0, 0);
     const p = track.worldToMini(carX, carY, this._miniTmp || (this._miniTmp = { x: 0, y: 0 }));
+    if (ghostPose) {
+      const q = track.worldToMini(ghostPose.x, ghostPose.y, this._miniTmp2 || (this._miniTmp2 = { x: 0, y: 0 }));
+      g.fillStyle = 'rgba(244,247,255,0.85)';
+      g.beginPath(); g.arc(q.x, q.y, 6, 0, TAU); g.fill();
+    }
     g.fillStyle = '#ff2d95';
     g.beginPath(); g.arc(p.x, p.y, 9, 0, TAU); g.fill();
     g.fillStyle = '#ffffff';
@@ -887,6 +934,11 @@ class Game {
     if (this.mode === 'time') {
       ui.setLap(`${Math.min(race.lap, CONFIG.RACE.LAPS)}/${CONFIG.RACE.LAPS}`);
       ui.setTime(fmtTime(race.phase === 'finished' ? race.total : race.time));
+      if (race.deltaTimer > 0 && race.delta != null) {
+        ui.setDelta(fmtDelta(race.delta), race.delta <= 0);
+      } else {
+        ui.setDelta(null);
+      }
     } else {
       const r = Math.max(0, race.remaining);
       const m = Math.floor(r / 60), s = Math.floor(r % 60);
