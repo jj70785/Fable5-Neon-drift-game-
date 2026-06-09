@@ -240,6 +240,7 @@ export class Track {
     }
     this._stamp = new Int32Array(this.segCount);
     this._stampId = 0;
+    this.lastHit = { x: 0, y: 0, nx: 0, ny: 0, impact: 0 };
 
     // checkpoint gates every ~CHECKPOINT_EVERY of the lap (start line = gate 0)
     const gateCount = Math.max(4, Math.round(1 / CONFIG.RACE.CHECKPOINT_EVERY));
@@ -445,6 +446,7 @@ export class Track {
   // Returns the strongest impact speed this tick (0 = no contact).
   collideCar(car) {
     let maxImpact = 0;
+    this.lastHit.impact = 0;
     const cos = Math.cos(car.heading), sin = Math.sin(car.heading);
     for (let pass = 0; pass < 2; pass++) {
       let hitThisPass = false;
@@ -488,6 +490,10 @@ export class Track {
           if (pen > 0 && pen < this.width) {
             const impact = resolveWallHit(car, nx, ny, pen);
             if (impact > maxImpact) maxImpact = impact;
+            const lh = this.lastHit;
+            if (impact >= lh.impact) {
+              lh.x = tmp.x; lh.y = tmp.y; lh.nx = nx; lh.ny = ny; lh.impact = impact;
+            }
             // circle followed the car body — update local test position
             px += nx * pen; py += ny * pen;
           }

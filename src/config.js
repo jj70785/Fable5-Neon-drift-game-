@@ -101,7 +101,8 @@ export const CONFIG = {
     WIDTH: 6,               // rubber mark width, px (world)
     ALPHA: 0.34,            // darkness of a stamped mark
     MIN_SLIP: 0.14,         // rad of slip before marks appear
-    GLOW_SEGMENTS: 72,      // ring buffer of fresh glowing segments
+    MIN_MOVE: 6,            // px a wheel must travel before stamping a segment
+    GLOW_SEGMENTS: 256,     // ring buffer of fresh glowing segments
     GLOW_TIME: 1.1,         // s for fresh-mark neon glow to fade
   },
 

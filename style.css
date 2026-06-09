@@ -57,7 +57,7 @@ html, body {
   gap: 18px;
   z-index: 50;
 }
-.screen.overlay { background: rgba(4, 6, 20, 0.72); backdrop-filter: blur(3px); }
+.screen.overlay { background: rgba(4, 6, 20, 0.78); }
 
 .screen-title {
   font-size: clamp(28px, 5vw, 52px);

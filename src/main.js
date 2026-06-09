@@ -12,6 +12,8 @@ import { UI, fmtTime } from './ui.js';
 import { Car } from './physics.js';
 import { TRACK_DEFS, getTrack } from './track.js';
 import { DriftScore } from './drift.js';
+import { Particles } from './particles.js';
+import { SkidMarks } from './skidmarks.js';
 
 const STATE = {
   TITLE: 'title',
@@ -178,6 +180,9 @@ class Game {
     this.track = null;
     this.car = new Car();
     this.drift = new DriftScore();
+    this.particles = new Particles();
+    this.skids = new SkidMarks();
+    this._wheels = { lx: 0, ly: 0, rx: 0, ry: 0 };
     this.race = null;
     this._respawnQueued = false;
     this._respawnCd = 0;
@@ -237,12 +242,13 @@ class Game {
     const self = this;
     window.__NEON = {
       version: '1.0.0',
+      game: self,
       get state() { return self.state; },
       get phase() { return self.race ? self.race.phase : null; },
       get car() { return self.car; },
       get drift() { return self.drift; },
       get fpsAvg() { return self.fpsAvg; },
-      get particlesLive() { return 0; },
+      get particlesLive() { return self.particles.live; },
       test: {
         start: (i = 0, mode = 'time') => self.startRace(i, mode),
         skipCountdown: () => {
@@ -251,7 +257,11 @@ class Game {
           }
         },
         finishRace: () => { if (self.race) self.finishRace(); },
-        burstParticles: () => {},
+        burstParticles: (n = 450) => {
+          for (let i = 0; i < Math.ceil(n / CONFIG.FX.CONFETTI_COUNT); i++) {
+            self.particles.emitConfetti(self.car.x, self.car.y);
+          }
+        },
         setCar: (x, y, heading, vx = 0, vy = 0) => {
           self.car.reset(x, y, heading);
           self.car.vx = vx; self.car.vy = vy;
@@ -287,6 +297,8 @@ class Game {
     const sp = this.track.startPose;
     this.car.reset(sp.x, sp.y, sp.heading);
     this.drift.reset();
+    this.particles.clear();
+    this.skids.begin(this.track);
     this.acc = 0; this.alpha = 1;
     this.timeScale = 1; this.slowmo = 0;
     this._respawnQueued = false; this._respawnCd = 0;
@@ -363,6 +375,7 @@ class Game {
     this.slowmo = CONFIG.FX.SLOWMO_TIME;
     this.timeScale = CONFIG.FX.SLOWMO_SCALE;
     this.cam.punch = CONFIG.CAMERA.FINISH_PUNCH;
+    this.particles.emitConfetti(this.car.x, this.car.y);
 
     if (this.mode === 'time' && race.lapTimes.length >= CONFIG.RACE.LAPS) {
       const key = `best.${this.track.def.id}`;
@@ -574,6 +587,21 @@ class Game {
     const impact = this.track.collideCar(car);
     if (impact > 0) this._onWallHit(impact);
 
+    // tire smoke + rubber while sliding
+    const absSlip = Math.abs(car.slip);
+    if (car.drifting && car.speed > 90) {
+      const intensity = clamp(absSlip / 0.55, 0, 1) * clamp(car.speed / 320, 0, 1);
+      const wh = car.rearWheels(this._wheels);
+      this.particles.emitSmoke(wh.lx, wh.ly, car.vx, car.vy, intensity * 0.5, h);
+      this.particles.emitSmoke(wh.rx, wh.ry, car.vx, car.vy, intensity * 0.5, h);
+      const mark = absSlip > CONFIG.SKID.MIN_SLIP ? intensity : 0;
+      this.skids.stamp(0, wh.lx, wh.ly, mark, true);
+      this.skids.stamp(1, wh.rx, wh.ry, mark, true);
+    } else {
+      this.skids.stamp(0, 0, 0, 0, false);
+      this.skids.stamp(1, 0, 0, 0, false);
+    }
+
     if (race.phase === 'running') {
       race.time += h;
 
@@ -611,6 +639,10 @@ class Game {
     if (this.settings.shake) {
       const amp = clamp(impact * W.SHAKE_SCALE, 0, 1) * W.SHAKE_MAX;
       if (amp > this.cam.shakeAmp) this.cam.shakeAmp = amp;
+    }
+    if (impact > W.SPARK_MIN_IMPACT) {
+      const hit = this.track.lastHit;
+      this.particles.emitSparks(hit.x, hit.y, hit.nx, hit.ny, impact);
     }
   }
 
@@ -684,13 +716,17 @@ class Game {
     const cam = this.cam, zoom = cam.zoom;
     const camX = cam.x + cam.shakeX, camY = cam.y + cam.shakeY;
 
-    // background = parallax starfield (opaque tile, one full-screen fill)
-    if (!this.starPattern) this.starPattern = ctx.createPattern(this.starTile, 'repeat');
-    const px = camX * 0.3, py = camY * 0.3;
-    ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * (w / 2 - px * zoom), dpr * (h / 2 - py * zoom));
-    const vwS = w / zoom, vhS = h / zoom;
-    ctx.fillStyle = this.starPattern;
-    ctx.fillRect(px - vwS / 2, py - vhS / 2, vwS, vhS);
+    // background: parallax starfield, tiled in SCREEN space with drawImage —
+    // a transformed pattern fill is brutally slow under software rendering
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const T = 256;
+    let ox = (-(camX * 0.3 * zoom)) % T; if (ox > 0) ox -= T;
+    let oy = (-(camY * 0.3 * zoom)) % T; if (oy > 0) oy -= T;
+    for (let sy = oy; sy < h; sy += T) {
+      for (let sx = ox; sx < w; sx += T) {
+        ctx.drawImage(this.starTile, sx, sy);
+      }
+    }
 
     // world transform
     ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * (w / 2 - camX * zoom), dpr * (h / 2 - camY * zoom));
@@ -703,10 +739,21 @@ class Game {
 
     // track: baked base + live crisp neon edge cores (visible chunks only)
     track.drawBase(ctx, left, top, right, bottom);
+
+    // rubber + fresh-mark glow sit on the asphalt, under the edge lines
+    const fxDt = rdt * this.timeScale;
+    this.particles.update(fxDt);
+    this.skids.age(fxDt);
+    this.skids.draw(ctx, left, top, right, bottom);
+    this.skids.drawGlow(ctx);
+
     const tc = track.renderColors;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     this._strokeChunks(ctx, track.outerChunks, tc.outerStrokes, left, top, right, bottom);
     this._strokeChunks(ctx, track.innerChunks, tc.innerStrokes, left, top, right, bottom);
+
+    // smoke billows under the car body
+    this.particles.drawUnder(ctx);
 
     // car shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -720,6 +767,9 @@ class Game {
     ctx.rotate(ih);
     ctx.drawImage(this.carSprite, -35, -35, 70, 70);
     ctx.restore();
+
+    // sparks + confetti on top
+    this.particles.drawOver(ctx);
 
     // minimap
     this._drawMinimap(ix, iy);
@@ -904,6 +954,7 @@ class Game {
       `state  ${this.state}${this.race ? '/' + this.race.phase : ''}\n` +
       `speed  ${car.speed.toFixed(0)} px/s · vF ${car.vF.toFixed(0)}\n` +
       `slip   ${slip.toFixed(1)}°${car.drifting ? '  DRIFT' : ''}\n` +
+      `parts  ${this.particles.live}\n` +
       `zoom   ${this.cam.zoom.toFixed(2)} · ×${this.timeScale.toFixed(2)}`
     );
   }
