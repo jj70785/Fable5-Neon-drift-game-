@@ -20,11 +20,11 @@ export const CONFIG = {
     NOSE_TAIL: 13,          // offset of front/rear collision circles
     END_RADIUS: 10,         // radius of front/rear collision circles
 
-    THROTTLE_FORCE: 1040,   // px/s^2 forward force at full throttle
+    THROTTLE_FORCE: 1000,   // px/s^2 forward force at full throttle
     REVERSE_FORCE: 520,     // px/s^2 reversing force
     MAX_REVERSE: 210,       // px/s reverse speed cap
     BRAKE_FORCE: 1500,      // px/s^2 when braking from forward motion
-    DRAG_K: 0.00185,        // quadratic drag coefficient (caps top speed ~620)
+    DRAG_K: 0.00195,        // quadratic drag; equilibrium with throttle+rolling ≈ 624 px/s
     ROLL_LIN: 0.34,         // linear rolling resistance, 1/s
     ROLL_CONST: 28,         // constant rolling resistance, px/s^2
     TOP_SPEED: 620,         // px/s, reference top speed (display + tuning)
