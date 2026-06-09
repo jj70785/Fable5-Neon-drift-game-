@@ -14,6 +14,7 @@ import { TRACK_DEFS, getTrack } from './track.js';
 import { DriftScore } from './drift.js';
 import { Particles } from './particles.js';
 import { SkidMarks } from './skidmarks.js';
+import { AudioEngine } from './audio.js';
 
 const STATE = {
   TITLE: 'title',
@@ -163,6 +164,12 @@ class Game {
       storage.get('settings', {}));
     this.muted = !!storage.get('muted', false);
 
+    this.audio = new AudioEngine();
+    this.audio.muted = this.muted;
+    this.audio.musicOn = this.settings.music;
+    this.audio.sfxOn = this.settings.sfx;
+    this._lastHitSound = 0;
+
     this.input = new Input();
     this.ui = new UI({
       onStart: (i) => this.startRace(i, this.ui.mode),
@@ -211,14 +218,23 @@ class Game {
   // ------------------------------------------------------------------ boot
   boot() {
     this.input.attach();
-    this.input.onFirstGesture = () => { /* audio engine hooks in later */ };
+    this.input.onFirstGesture = () => {
+      this.audio.init();
+      this.audio.resume();
+      this.audio.startMusic();
+    };
 
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('orientationchange', () => this.resize());
     this.resize();
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && this.state === STATE.RACE) this.pause();
+      if (document.hidden) {
+        if (this.state === STATE.RACE) this.pause();
+        this.audio.suspend();
+      } else {
+        this.audio.resume();
+      }
     });
 
     if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
@@ -332,12 +348,14 @@ class Game {
     this.ui.clearPopups();
     this.ui.showTouch(!!this._touchUI || this.input.touchActive);
     this.setState(STATE.RACE);
+    this.audio.uiSelect();
   }
 
   restartRace() { if (this.race) this.startRace(this.trackIndex, this.mode); }
 
   quitToSelect() {
     this.race = null;
+    this.audio.engineOff();
     this.ui.showHud(false);
     this.ui.showTouch(false);
     this.ui.setCountdown(null);
@@ -358,6 +376,7 @@ class Game {
     this.setState(STATE.PAUSED);
     this.ui.showScreen('pause');
     this.input.releaseAll();
+    this.audio.engineOff();
   }
 
   resume() {
@@ -376,6 +395,7 @@ class Game {
     this.timeScale = CONFIG.FX.SLOWMO_SCALE;
     this.cam.punch = CONFIG.CAMERA.FINISH_PUNCH;
     this.particles.emitConfetti(this.car.x, this.car.y);
+    this.audio.finishFanfare();
 
     if (this.mode === 'time' && race.lapTimes.length >= CONFIG.RACE.LAPS) {
       const key = `best.${this.track.def.id}`;
@@ -462,11 +482,15 @@ class Game {
     this.settings[name] = !this.settings[name];
     storage.set('settings', this.settings);
     this.ui.reflectSettings(this.settings);
+    if (name === 'music') this.audio.setMusicOn(this.settings.music);
+    if (name === 'sfx') this.audio.setSfxOn(this.settings.sfx);
+    this.audio.uiMove();
   }
 
   toggleMute() {
     this.muted = !this.muted;
     storage.set('muted', this.muted);
+    this.audio.setMuted(this.muted);
   }
 
   // ------------------------------------------------------------------ loop
@@ -505,6 +529,19 @@ class Game {
 
     this.render(rdt);
     this.ui.update(rdt);
+    this.audio.update();
+
+    // continuous engine/skid voices follow the car
+    if ((this.state === STATE.RACE || this.state === STATE.RESULTS) && this.race) {
+      const car = this.car;
+      const speed01 = clamp(car.speed / CONFIG.CAR.TOP_SPEED, 0, 1);
+      const throttle = this.race.phase === 'running' ? this.input.effectiveThrottle() : 0;
+      const slip01 = car.drifting
+        ? clamp(Math.abs(car.slip) / 0.7, 0, 1) * clamp(car.speed / 350, 0, 1)
+        : 0;
+      this.audio.setEngine(speed01, throttle, slip01);
+    }
+
     this._updateDebug(frameMs);
     this.input.clearEdges();
   }
@@ -519,6 +556,7 @@ class Game {
         if (inp.consume('any')) {
           this.ui.showScreen('select');
           this.setState(STATE.SELECT);
+          this.audio.uiSelect();
         }
         break;
       case STATE.SELECT:
@@ -546,8 +584,13 @@ class Game {
       if (race.cd <= 0) {
         race.phase = 'running';
         this.ui.setCountdown('GO!');
+        this.audio.countdown(true);
         race.goTimer = 0.8;
       } else {
+        if (n !== race.cdLast && n <= CONFIG.RACE.COUNTDOWN) {
+          race.cdLast = n;
+          this.audio.countdown(false);
+        }
         this.ui.setCountdown(String(n));
       }
     } else if (race.goTimer != null && race.goTimer > 0) {
@@ -609,7 +652,10 @@ class Game {
         this.drift.step(h, car, impact);
         if (this.drift.banked > 0) this._onBank(this.drift.banked, this.drift.mult);
         if (this.drift.forfeited > 1) this._onForfeit(this.drift.forfeited);
-        if (this.drift.multUp) this.ui.setDriftPending(this.drift.pending, this.drift.mult);
+        if (this.drift.multUp) {
+          this.ui.setDriftPending(this.drift.pending, this.drift.mult);
+          this.audio.multUp(this.drift.mult);
+        }
       }
 
       // checkpoint gates: must be crossed in order (blocks shortcuts)
@@ -643,6 +689,11 @@ class Game {
     if (impact > W.SPARK_MIN_IMPACT) {
       const hit = this.track.lastHit;
       this.particles.emitSparks(hit.x, hit.y, hit.nx, hit.ny, impact);
+      const now = performance.now();
+      if (now - this._lastHitSound > 90) {
+        this._lastHitSound = now;
+        this.audio.wallHit(clamp(impact / 700, 0, 1));
+      }
     }
   }
 
@@ -661,11 +712,13 @@ class Game {
       : `+${points.toLocaleString('en-US')}`;
     this.ui.spawnPopup(p.x, p.y, text, false);
     this.ui.bumpScore();
+    this.audio.bank(mult);
   }
 
   _onForfeit(points) {
     const p = this._toScreen(this.car.x, this.car.y - 40, this._popTmp || (this._popTmp = { x: 0, y: 0 }));
     this.ui.spawnPopup(p.x, p.y, `${Math.floor(points).toLocaleString('en-US')} LOST`, true);
+    this.audio.forfeit();
   }
 
   // ---------------------------------------------------------------- render
