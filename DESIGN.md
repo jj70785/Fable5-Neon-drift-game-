@@ -19,6 +19,8 @@ the values are what they are.
 | Test hooks (`window.__NEON`) ship in the game | A few getters and ~20 lines. They power the smoke test and the F3 overlay; harmless at runtime. |
 | Drift Attack banks pending points when the timer ends | Feels fair — the run ends mid-slide through no fault of yours. Walls still forfeit. |
 | No wrong-way indicator | Checkpoints are strictly ordered, so a wrong-way lap can't validate; adding UI for it cluttered the HUD. Gate notches + chevrons telegraph direction instead. |
+| Mobile pause/respawn at top **center**, not top corner | The brief said "pause icon top corner", but both corners are taken (lap/time left, minimap right). Center keeps every spec'd HUD element unobstructed at 390×844 — verified by the smoke test's overlap check. |
+| Rear-light trail | Not in the brief: a fading additive magenta ribbon behind the car above ~240 px/s. It sells speed on straights the way skids sell drifts, and costs a 72-entry ring buffer. |
 
 ## Car physics (final values)
 

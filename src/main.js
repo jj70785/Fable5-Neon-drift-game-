@@ -195,6 +195,12 @@ class Game {
     this.ghostPlay = new GhostPlayer();
     this._ghostPose = { x: 0, y: 0, heading: 0, done: false };
     this.race = null;
+
+    // rear-light trail ring buffer: x, y, age, intensity per entry
+    this._trailN = 72;
+    this._trail = new Float32Array(this._trailN * 4);
+    this._trailHead = 0;
+    for (let i = 0; i < this._trailN; i++) this._trail[i * 4 + 2] = 99;
     this._respawnQueued = false;
     this._respawnCd = 0;
     this.lastImpact = 0;
@@ -320,6 +326,7 @@ class Game {
     this.drift.reset();
     this.particles.clear();
     this.skids.begin(this.track);
+    for (let i = 0; i < this._trailN; i++) this._trail[i * 4 + 2] = 99;
     this.acc = 0; this.alpha = 1;
     this.timeScale = 1; this.slowmo = 0;
     this._respawnQueued = false; this._respawnCd = 0;
@@ -444,9 +451,11 @@ class Game {
       const m = this.track.medals;
       const total = race.total;
       let medal = null;
-      if (total <= m.gold) medal = 'gold';
-      else if (total <= m.silver) medal = 'silver';
-      else if (total <= m.bronze) medal = 'bronze';
+      if (race.lapTimes.length >= CONFIG.RACE.LAPS) {
+        if (total <= m.gold) medal = 'gold';
+        else if (total <= m.silver) medal = 'silver';
+        else if (total <= m.bronze) medal = 'bronze';
+      }
       const lines = race.lapTimes.map((t, i) => `LAP ${i + 1}   ${fmtTime(t)}`);
       if (race.prevBest) lines.push(`PREVIOUS BEST   ${fmtTime(race.prevBest)}`);
       this.ui.showResults({
@@ -651,6 +660,17 @@ class Game {
     const impact = this.track.collideCar(car);
     if (impact > 0) this._onWallHit(impact);
 
+    // rear-light trail sample (every other step ≈ 60 Hz is plenty)
+    if ((this._trailTick = !this._trailTick)) {
+      const h4 = this._trailHead * 4;
+      const cosH = Math.cos(car.heading), sinH = Math.sin(car.heading);
+      this._trail[h4] = car.x - cosH * 17;
+      this._trail[h4 + 1] = car.y - sinH * 17;
+      this._trail[h4 + 2] = 0;
+      this._trail[h4 + 3] = clamp((car.speed - 240) / 360, 0, 1);
+      this._trailHead = (this._trailHead + 1) % this._trailN;
+    }
+
     // tire smoke + rubber while sliding
     const absSlip = Math.abs(car.slip);
     if (car.drifting && car.speed > 90) {
@@ -832,6 +852,9 @@ class Game {
     this._strokeChunks(ctx, track.outerChunks, tc.outerStrokes, left, top, right, bottom);
     this._strokeChunks(ctx, track.innerChunks, tc.innerStrokes, left, top, right, bottom);
 
+    // rear-light trail (additive magenta ribbon, fades over ~0.5 s)
+    this._drawTrail(ctx, fxDt);
+
     // smoke billows under the car body
     this.particles.drawUnder(ctx);
 
@@ -868,6 +891,33 @@ class Game {
 
     // minimap
     this._drawMinimap(ix, iy, ghostDrawn ? this._ghostPose : null);
+  }
+
+  _drawTrail(ctx, fxDt) {
+    const T = this._trail, n = this._trailN;
+    let any = false;
+    for (let i = 0; i < n; i++) T[i * 4 + 2] += fxDt;
+    ctx.save();
+    for (let k = 1; k < n; k++) {
+      // walk backward from the freshest sample
+      const a = ((this._trailHead - k + n * 2) % n) * 4;
+      const b = ((this._trailHead - k - 1 + n * 2) % n) * 4;
+      const age = T[a + 2];
+      if (age > 0.5 || T[b + 2] > 0.6) continue;
+      const inten = T[a + 3];
+      if (inten <= 0.02) continue;
+      const dx = T[a] - T[b], dy = T[a + 1] - T[b + 1];
+      if (dx * dx + dy * dy > 60 * 60) continue;       // respawn gap
+      if (!any) { ctx.globalCompositeOperation = 'lighter'; any = true; }
+      const fade = 1 - age / 0.5;
+      ctx.strokeStyle = `rgba(255,45,149,${(fade * fade * 0.38 * inten).toFixed(3)})`;
+      ctx.lineWidth = 1.5 + fade * 4.5;
+      ctx.beginPath();
+      ctx.moveTo(T[a], T[a + 1]);
+      ctx.lineTo(T[b], T[b + 1]);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   _strokeChunks(ctx, chunks, strokes, left, top, right, bottom) {
