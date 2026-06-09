@@ -133,8 +133,8 @@ export const CONFIG = {
   // --- look ------------------------------------------------------------------------
   COLORS: {
     BG: '#070b1f',
-    GRID: 'rgba(0,240,255,0.05)',
-    GRID_MAJOR: 'rgba(0,240,255,0.10)',
+    GRID: 'rgba(0,240,255,0.07)',
+    GRID_MAJOR: 'rgba(0,240,255,0.13)',
     ASPHALT: '#10162e',
     ASPHALT_EDGE: 'rgba(0,0,0,0.30)',
     CYAN: '#00f0ff',

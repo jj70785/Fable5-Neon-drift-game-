@@ -356,14 +356,18 @@ export class Track {
     g.strokeStyle = tc.halo; g.lineWidth = this.width + 86; g.stroke(this.centerPath);
     g.strokeStyle = tc.halo2; g.lineWidth = this.width + 30; g.stroke(this.centerPath);
     g.strokeStyle = CONFIG.COLORS.ASPHALT; g.lineWidth = this.width; g.stroke(this.centerPath);
-    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = this.width - 20; g.stroke(this.centerPath);
-    g.strokeStyle = 'rgba(16,22,46,0.9)'; g.lineWidth = this.width - 56; g.stroke(this.centerPath);
+    g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = this.width - 20; g.stroke(this.centerPath);
+    g.strokeStyle = 'rgba(170,195,255,0.035)'; g.lineWidth = this.width - 64; g.stroke(this.centerPath);
 
     g.setLineDash([22, 38]);
     g.strokeStyle = 'rgba(244,247,255,0.07)';
     g.lineWidth = 2.5;
     g.stroke(this.centerPath);
     g.setLineDash([]);
+
+    this._bakeKerbs(g);
+    this._bakeChevrons(g);
+    this._bakeGateNotches(g);
 
     // wide soft glow passes are baked; thin cores stay live
     const [oSoft] = tc.outerStrokes, [iSoft] = tc.innerStrokes;
@@ -385,6 +389,74 @@ export class Track {
     g.restore();
 
     this.baked = { canvas: c, scale: s };
+  }
+
+  // red/white kerb dashes where the corner radius tightens — classic circuit
+  // dressing that also telegraphs braking zones
+  _bakeKerbs(g) {
+    const n = this.n;
+    const ang = (i) => Math.atan2(this.ty[i], this.tx[i]);
+    const hw = this.width / 2 - 5;
+    let dash = 0;
+    g.lineCap = 'butt';
+    for (let i = 0; i < n; i++) {
+      const a0 = ang((i - 2 + n) % n), a1 = ang((i + 2) % n);
+      let d = a1 - a0;
+      if (d > Math.PI) d -= Math.PI * 2;
+      else if (d < -Math.PI) d += Math.PI * 2;
+      const curv = Math.abs(d) / (4 * this.spacing);
+      if (curv < 1 / 420) continue;
+      const j = (i + 1) % n;
+      for (let side = -1; side <= 1; side += 2) {
+        const nx0 = -this.ty[i] * side, ny0 = this.tx[i] * side;
+        const nx1 = -this.ty[j] * side, ny1 = this.tx[j] * side;
+        g.strokeStyle = (dash & 1) ? 'rgba(244,247,255,0.55)' : 'rgba(255,77,107,0.65)';
+        g.lineWidth = 8;
+        g.beginPath();
+        g.moveTo(this.cx[i] + nx0 * hw, this.cy[i] + ny0 * hw);
+        g.lineTo(this.cx[j] + nx1 * hw, this.cy[j] + ny1 * hw);
+        g.stroke();
+      }
+      dash++;
+    }
+    g.lineCap = 'round';
+  }
+
+  // dim direction chevrons down the middle of the road
+  _bakeChevrons(g) {
+    const every = Math.max(24, Math.round(520 / this.spacing));
+    g.strokeStyle = 'rgba(244,247,255,0.075)';
+    g.lineWidth = 3.5;
+    g.lineJoin = 'miter';
+    for (let i = 0; i < this.n; i += every) {
+      const tx = this.tx[i], ty = this.ty[i];
+      const nx = -ty, ny = tx;
+      const px = this.cx[i], py = this.cy[i];
+      g.beginPath();
+      g.moveTo(px - tx * 5 + nx * 9, py - ty * 5 + ny * 9);
+      g.lineTo(px + tx * 9, py + ty * 9);
+      g.lineTo(px - tx * 5 - nx * 9, py - ty * 5 - ny * 9);
+      g.stroke();
+    }
+    g.lineJoin = 'round';
+  }
+
+  // subtle notches at checkpoint gates (respawn anchors)
+  _bakeGateNotches(g) {
+    g.strokeStyle = 'rgba(0,240,255,0.45)';
+    g.lineWidth = 3;
+    for (let k = 1; k < this.gates.length; k++) {
+      const gt = this.gates[k];
+      const nx = -gt.ty, ny = gt.tx;
+      for (let side = -1; side <= 1; side += 2) {
+        const ex = gt.cx + nx * (this.width / 2) * side;
+        const ey = gt.cy + ny * (this.width / 2) * side;
+        g.beginPath();
+        g.moveTo(ex, ey);
+        g.lineTo(ex - nx * 13 * side, ey - ny * 13 * side);
+        g.stroke();
+      }
+    }
   }
 
   // blit only the visible part of the baked base
