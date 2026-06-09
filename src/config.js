@@ -11,6 +11,7 @@ export const CONFIG = {
   MAX_FRAME_MS: 50,         // clamp frame delta (tab-switch protection)
   MAX_STEPS_PER_FRAME: 8,   // hard cap on physics catch-up steps
   DPR_CAP: 2,               // devicePixelRatio cap (perf on 3x phones)
+  SAVE_VERSION: 2,          // bump when physics tuning invalidates old records
 
   // --- car physics (arcade drift model) -------------------------------------
   CAR: {
@@ -20,14 +21,15 @@ export const CONFIG = {
     NOSE_TAIL: 13,          // offset of front/rear collision circles
     END_RADIUS: 10,         // radius of front/rear collision circles
 
-    THROTTLE_FORCE: 1000,   // px/s^2 forward force at full throttle
+    THROTTLE_FORCE: 880,    // px/s^2 forward force at full throttle
     REVERSE_FORCE: 520,     // px/s^2 reversing force
     MAX_REVERSE: 210,       // px/s reverse speed cap
     BRAKE_FORCE: 1500,      // px/s^2 when braking from forward motion
-    DRAG_K: 0.00195,        // quadratic drag; equilibrium with throttle+rolling ≈ 624 px/s
+    DRAG_K: 0.00229,        // quadratic drag; equilibrium with throttle+rolling ≈ 540
     ROLL_LIN: 0.34,         // linear rolling resistance, 1/s
     ROLL_CONST: 28,         // constant rolling resistance, px/s^2
-    TOP_SPEED: 620,         // px/s, reference top speed (display + tuning)
+    TOP_SPEED: 540,         // px/s — v2: lowered from 620 after phone playtesting
+                            //   (more reaction time, walls feel fair on small screens)
 
     GRIP_FULL: 8.8,         // lateral velocity bleed rate, 1/s (normal grip)
     GRIP_DRIFT_FRAC: 0.30,  // drift grip = GRIP_FULL * this (~25-35% per spec)
@@ -35,7 +37,8 @@ export const CONFIG = {
 
     TURN_RATE: 2.8,         // rad/s steering authority at mid speed
     STEER_REF_SPEED: 150,   // px/s where steering reaches full authority
-    HIGH_SPEED_DAMP: 0.5,   // how much steering softens at top speed (0..1)
+    HIGH_SPEED_DAMP: 0.42,  // how much steering softens at top speed (0..1)
+                            //   v2: was 0.5 — more authority so walls are avoidable
     DRIFT_YAW_BOOST: 1.6,   // extra yaw authority while drifting (counter-steer)
     DRIFT_ALIGN: 0.9,       // passive heading→velocity alignment in drift, 1/s
                             //   (makes slides recoverable; the key feel knob)
@@ -43,7 +46,7 @@ export const CONFIG = {
     DRIFT_ENTER_SLIP: 0.27, // rad (~15.5°) slip angle that triggers drift
     DRIFT_EXIT_SLIP: 0.10,  // rad slip below which drift can end
     DRIFT_EXIT_TIME: 0.18,  // s of low slip required to exit drift
-    DRIFT_MIN_SPEED: 130,   // px/s minimum forward speed to start/stay drifting
+    DRIFT_MIN_SPEED: 120,   // px/s minimum forward speed to start/stay drifting
     HANDBRAKE_KICK: 0.25,   // extra yaw fraction while initiating with handbrake
     MAX_SLIP_SOFT: 0.78,    // rad (~45°): past this, tires dig in hard (max sustainable)
     SLIP_STEER_FADE: 0.5,   // rad: steering INTO the slide fades beyond this slip
@@ -62,9 +65,9 @@ export const CONFIG = {
   // --- camera ----------------------------------------------------------------
   CAMERA: {
     FOLLOW_RATE: 5.2,       // 1/s exponential follow damping
-    LOOKAHEAD: 0.42,        // s of velocity lookahead
+    LOOKAHEAD: 0.5,         // s of velocity lookahead (v2: was 0.42 — see further ahead)
     ZOOM_BASE: 1.0,         // zoom at standstill (scaled by viewport)
-    ZOOM_AT_SPEED: 0.8,     // zoom at top speed (zooms out when fast)
+    ZOOM_AT_SPEED: 0.76,    // zoom at top speed (v2: was 0.8 — wider view when fast)
     ZOOM_RATE: 2.2,         // 1/s zoom damping
     VIEW_REF: 860,          // px of world the short screen axis should show
     VIEW_MIN: 0.52,         // viewport zoom multiplier clamp
@@ -74,12 +77,13 @@ export const CONFIG = {
 
   // --- drift scoring (Drift Attack) -------------------------------------------
   SCORE: {
-    RATE: 1.5,              // points/s = speed * |slip| * RATE
+    RATE: 1.7,              // points/s = speed * |slip| * RATE (v2: was 1.5,
+                            //   compensates the lower speeds so scores feel the same)
     MIN_DRIFT_TIME: 0.25,   // s a drift must last to bank
     CHAIN_WINDOW: 1.5,      // s between drifts to keep the chain alive
     MULT_MAX: 8,            // multiplier cap ×1 → ×8
     DRIFT_ATTACK_TIME: 120, // s round length
-    MIN_SPEED: 160,         // px/s below which a drift stops scoring
+    MIN_SPEED: 140,         // px/s below which a drift stops scoring
     MIN_SLIP: 0.16,         // rad (~9°) below which a drift stops scoring
   },
 
@@ -143,5 +147,5 @@ export const CONFIG = {
     WHITE: '#f4f7ff',
   },
 
-  SPEED_DISPLAY: 0.36,      // px/s → "km/h" display factor (620 → ~223)
+  SPEED_DISPLAY: 0.225,     // px/s → "mph" display factor (540 → ~122 mph)
 };

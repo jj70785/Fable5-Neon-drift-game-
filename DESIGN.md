@@ -138,6 +138,21 @@ Saved only on a new best total, per track, under `neondrift.ghost.<id>`.
 - AudioContext is created on the first gesture; `M` mutes the master,
   music/SFX have separate toggles, and the context suspends when hidden.
 
+## v2 tuning — first real phone playtest
+
+Feedback: *"too fast, too hard to not hit the walls"* (and: show mph).
+Root cause: a phone shows far less road ahead than the dev viewport, so the
+same speed leaves much less reaction time. Changes:
+
+| Knob | v1 → v2 | Effect |
+| --- | --- | --- |
+| `TOP_SPEED` / `THROTTLE_FORCE` / `DRAG_K` | 620 → **540** px/s (880 force, 0.00229 drag) | ~13% slower everywhere; same acceleration character. |
+| `HIGH_SPEED_DAMP` | 0.5 → **0.42** | More steering authority at top speed — walls are dodgeable. |
+| `CAMERA.LOOKAHEAD` / `ZOOM_AT_SPEED` | 0.42 → **0.5** s · 0.8 → **0.76** | The camera shows more road where you're going. |
+| `SPEED_DISPLAY` | km/h → **mph** (×0.225, 540 ≈ 122 mph) | Requested. Display-only. |
+| `SCORE.RATE` | 1.5 → **1.7** | Keeps Drift Attack score totals feeling the same at lower speeds. |
+| `SAVE_VERSION` | 1 → **2** | Old bests/ghosts were set under faster physics and would be unbeatable; records are stored under versioned keys so everyone starts fresh and fair. Medal targets rescale automatically (they derive from `TOP_SPEED`). |
+
 ## Performance notes
 
 Verified by the smoke test in **headless Chromium with software

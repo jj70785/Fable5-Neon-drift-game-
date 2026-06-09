@@ -41,12 +41,12 @@ const releaseAll = async () => {
   for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']) await page.keyboard.up(k);
 };
 
-// --- 1. acceleration on a true straight
+// --- 1. acceleration on a true straight (v2 tuning: top speed ~540)
 await place(-700, 995, 0);
 await page.keyboard.down('ArrowUp');
 await page.waitForTimeout(1800);
 let s = await car();
-check('reaches ~620 px/s in ~1.8s', s.speed > 560 && s.speed < 680, `speed=${s.speed.toFixed(0)}`);
+check('reaches ~540 px/s in ~1.8s', s.speed > 480 && s.speed < 580, `speed=${s.speed.toFixed(0)}`);
 await releaseAll();
 
 // --- 2. steering at a standstill does nothing

@@ -101,10 +101,10 @@ export class GhostPlayer {
 
 export function saveGhost(trackId, recorder) {
   try {
-    storage.set(`ghost.${trackId}`, recorder.toData());
+    storage.set(`ghost.${trackId}.v${CONFIG.SAVE_VERSION}`, recorder.toData());
   } catch (e) { /* quota — ghost is a luxury, never crash */ }
 }
 
 export function loadGhost(trackId) {
-  return storage.get(`ghost.${trackId}`, null);
+  return storage.get(`ghost.${trackId}.v${CONFIG.SAVE_VERSION}`, null);
 }

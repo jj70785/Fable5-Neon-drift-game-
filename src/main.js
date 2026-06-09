@@ -362,7 +362,7 @@ class Game {
     if (this.mode === 'time') {
       this.ghostPlay.load(loadGhost(this.track.def.id));
       this.ghostRec.start();
-      const best = storage.get(`best.${this.track.def.id}`, null);
+      const best = storage.get(`best.${this.track.def.id}.v${CONFIG.SAVE_VERSION}`, null);
       if (best && best.splits && best.splits.length) this.race.bestSplits = best.splits;
     } else {
       this.ghostPlay.load(null);
@@ -465,7 +465,7 @@ class Game {
     this.audio.finishFanfare();
 
     if (this.mode === 'time' && race.lapTimes.length >= CONFIG.RACE.LAPS) {
-      const key = `best.${this.track.def.id}`;
+      const key = `best.${this.track.def.id}.v${CONFIG.SAVE_VERSION}`;
       const prev = storage.get(key, null);
       race.isNewBest = !prev || race.total < prev.total;
       if (race.isNewBest) {
@@ -477,7 +477,7 @@ class Game {
     } else if (this.mode === 'drift') {
       this.drift.flush();
       if (this.drift.banked > 0) this._onBank(this.drift.banked, this.drift.mult);
-      const key = `drift.${this.track.def.id}`;
+      const key = `drift.${this.track.def.id}.v${CONFIG.SAVE_VERSION}`;
       const prev = storage.get(key, null);
       race.isNewBest = !prev || this.drift.total > prev;
       if (race.isNewBest && this.drift.total > 0) storage.set(key, this.drift.total);
@@ -532,7 +532,7 @@ class Game {
       let bestText = 'NO RECORD';
       let medals = [];
       if (mode === 'time') {
-        const best = storage.get(`best.${def.id}`, null);
+        const best = storage.get(`best.${def.id}.v${CONFIG.SAVE_VERSION}`, null);
         if (best) bestText = `BEST ${fmtTime(best.total)}`;
         const m = track.medals;
         medals = [
@@ -541,7 +541,7 @@ class Game {
           { tier: 'bronze', label: `B ${fmtTimeShort(m.bronze)}`, earned: best && best.total <= m.bronze },
         ];
       } else {
-        const hs = storage.get(`drift.${def.id}`, null);
+        const hs = storage.get(`drift.${def.id}.v${CONFIG.SAVE_VERSION}`, null);
         if (hs) bestText = `BEST ${Math.floor(hs).toLocaleString('en-US')}`;
       }
       return { name: def.name, diff: def.diff, thumb: track.mini.canvas, bestText, medals };

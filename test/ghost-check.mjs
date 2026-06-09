@@ -52,10 +52,13 @@ const lap1 = await page.evaluate(() => window.__NEON.game.race.total);
 check('1-lap race finishes by crossing all gates', lap1 > 0, `total=${lap1?.toFixed(3)}`);
 
 await page.waitForFunction(() => window.__NEON.state === 'results', null, { timeout: 5000 });
-const persisted = await page.evaluate(() => ({
-  best: !!window.localStorage.getItem('neondrift.best.sunset'),
-  ghost: window.localStorage.getItem('neondrift.ghost.sunset'),
-}));
+const persisted = await page.evaluate(() => {
+  const v = window.__NEON.config.SAVE_VERSION;
+  return {
+    best: !!window.localStorage.getItem(`neondrift.best.sunset.v${v}`),
+    ghost: window.localStorage.getItem(`neondrift.ghost.sunset.v${v}`),
+  };
+});
 check('best time persisted', persisted.best);
 check('ghost persisted under 100 KB', !!persisted.ghost && persisted.ghost.length < 100 * 1024,
   `bytes=${persisted.ghost ? persisted.ghost.length : 0}`);
