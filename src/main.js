@@ -235,6 +235,9 @@ class Game {
       this.audio.resume();
       this.audio.startMusic();
     };
+    // best-effort autoplay: browsers allow it on revisits/engaged origins;
+    // otherwise the first tap (still on the title screen) starts the music
+    this.audio.tryAutostart();
 
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('orientationchange', () => this.resize());
@@ -255,6 +258,7 @@ class Game {
     this.input.bindButton(this.ui.el.btnLeft, 'left');
     this.input.bindButton(this.ui.el.btnRight, 'right');
     this.input.bindButton(this.ui.el.btnBrake, 'brake');
+    this.input.bindButton(this.ui.el.btnGas, 'gas');
     this.input.bindButton(this.ui.el.btnPause, 'pause');
     this.input.bindButton(this.ui.el.btnRespawn, 'respawn');
 
@@ -606,7 +610,7 @@ class Game {
     if ((this.state === STATE.RACE || this.state === STATE.RESULTS) && this.race) {
       const car = this.car;
       const speed01 = clamp(car.speed / CONFIG.CAR.TOP_SPEED, 0, 1);
-      const throttle = this.race.phase === 'running' ? this.input.effectiveThrottle() : 0;
+      const throttle = this.race.phase === 'running' ? this.input.effectiveThrottle(car.speed) : 0;
       const slip01 = car.drifting
         ? clamp(Math.abs(car.slip) / 0.7, 0, 1) * clamp(car.speed / 350, 0, 1)
         : 0;
@@ -684,8 +688,8 @@ class Game {
 
     const locked = race.phase !== 'running';
     const steer = locked ? 0 : inp.steer;
-    const throttle = locked ? 0 : inp.effectiveThrottle();
-    const brake = locked ? 0 : inp.brake;
+    const throttle = locked ? 0 : inp.effectiveThrottle(car.speed);
+    const brake = locked ? 0 : inp.effectiveBrake(car.speed);
     const hb = locked ? false : inp.handbrake;
 
     if (this._respawnCd > 0) this._respawnCd -= h;

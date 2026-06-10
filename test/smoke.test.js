@@ -136,19 +136,22 @@ const browser = await chromium.launch();
     const left = vis(document.getElementById('btn-left'));
     const right = vis(document.getElementById('btn-right'));
     const brake = vis(document.getElementById('btn-brake'));
+    const gas = vis(document.getElementById('btn-gas'));
     const speed = vis(document.getElementById('hud-speed'));
     const lap = vis(document.getElementById('hud-left'));
     const mini = vis(document.getElementById('minimap'));
-    return { left, right, brake, speed, lap, mini };
+    return { left, right, brake, gas, speed, lap, mini };
   });
-  check('mobile: touch buttons visible', !!(layout.left && layout.right && layout.brake));
-  check('mobile: buttons ≥ 64 px', layout.brake.width >= 64 && layout.left.width >= 64,
-    `brake=${layout.brake.width}px`);
+  check('mobile: touch buttons visible', !!(layout.left && layout.right && layout.brake && layout.gas));
+  check('mobile: buttons ≥ 64 px', layout.brake.width >= 64 && layout.left.width >= 64 && layout.gas.width >= 64,
+    `brake=${layout.brake.width}px gas=${layout.gas.width}px`);
   const overlap = (a, b) => a && b &&
     a.x < b.x + b.width && b.x < a.x + a.width &&
     a.y < b.y + b.height && b.y < a.y + a.height;
   const anyOverlap = overlap(layout.brake, layout.speed) || overlap(layout.left, layout.speed) ||
-    overlap(layout.brake, layout.mini) || overlap(layout.left, layout.lap);
+    overlap(layout.brake, layout.mini) || overlap(layout.left, layout.lap) ||
+    overlap(layout.gas, layout.speed) || overlap(layout.gas, layout.brake) ||
+    overlap(layout.gas, layout.mini);
   check('mobile: touch layout clear of HUD', !anyOverlap);
 
   // multi-touch: steer while holding handbrake
@@ -164,13 +167,14 @@ const browser = await chromium.launch();
     };
     down(11, document.getElementById('btn-brake'));
     down(12, document.getElementById('btn-left'));
+    down(13, document.getElementById('btn-gas'));
     setTimeout(() => {
-      resolve({ steer: game.input.steer, handbrake: game.input.handbrake });
+      resolve({ steer: game.input.steer, handbrake: game.input.handbrake, gas: game.input.touch.gas });
     }, 80);
   }));
-  check('mobile: steering while handbrake held (multi-touch)',
-    steered.steer === -1 && steered.handbrake === true,
-    `steer=${steered.steer} hb=${steered.handbrake}`);
+  check('mobile: steer + handbrake + gas all held (multi-touch)',
+    steered.steer === -1 && steered.handbrake === true && steered.gas === true,
+    `steer=${steered.steer} hb=${steered.handbrake} gas=${steered.gas}`);
 
   check('mobile: zero console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   await page.close();

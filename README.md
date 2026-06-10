@@ -30,19 +30,21 @@ synthesized live with the Web Audio API.
 ### Desktop
 | Key | Action |
 | --- | --- |
-| `W` / `↑` | Throttle |
-| `S` / `↓` | Brake / reverse |
+| `W` / `↑` | Throttle (release to coast/glide) |
+| `S` / `↓` | Brake to a stop · press again from standstill to reverse |
 | `A` `D` / `←` `→` | Steer |
-| `Space` | Handbrake — hold to drift |
+| `Space` | Handbrake — hold **with steering** to drift, **while straight** it's a hard brake |
 | `R` | Respawn at the last checkpoint |
 | `Esc` / `P` | Pause |
 | `M` | Mute |
 | `F3` | Debug overlay (FPS, slip angle, particles) |
 
 ### Phone / tablet
-Throttle is automatic. Steer with the **◀ ▶** buttons (bottom-left), hold
-the big **DRIFT** button (bottom-right) to slide — steering while holding
-it works, it's all multi-touch. Respawn ↺ and pause Ⅱ sit at the top.
+The car cruises on its own at a comfortable pace. Hold **GAS** (yellow,
+right side) for full speed and release it to slow into corners. Steer with
+the **◀ ▶** buttons (bottom-left). Hold **DRIFT** while steering to slide —
+hold it while going straight and it's your brake. Everything is
+multi-touch safe; respawn ↺ and pause Ⅱ sit at the top.
 
 ## Install it like an app (PWA)
 

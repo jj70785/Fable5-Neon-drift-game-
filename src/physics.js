@@ -38,6 +38,7 @@ export class Car {
     this.steer = 0;
 
     this._driftExitT = 0;
+    this._brakeLatch = false; // braking from speed stops at 0; reverse needs a fresh press
   }
 
   reset(x, y, heading) {
@@ -49,6 +50,7 @@ export class Car {
     this.slip = 0;
     this.drifting = false;
     this._driftExitT = 0;
+    this._brakeLatch = false;
   }
 
   step(dt, steer, throttle, brake, handbrake) {
@@ -86,20 +88,39 @@ export class Car {
     }
 
     // ---- longitudinal forces ----
+    // brake latch: braking from speed stops the car at 0 and holds it there;
+    // reverse only engages on a fresh brake press from (near) standstill
+    if (brake > 0) {
+      if (vF > 60) this._brakeLatch = true;
+    } else {
+      this._brakeLatch = false;
+    }
+
     let aF = 0;
     if (throttle > 0) aF += C.THROTTLE_FORCE * throttle;
     if (brake > 0) {
-      if (vF > 30) aF -= C.BRAKE_FORCE * brake;        // braking
-      else aF -= C.REVERSE_FORCE * brake;              // reversing
+      if (vF > 5) aF -= C.BRAKE_FORCE * brake;          // braking
+      else if (!this._brakeLatch) aF -= C.REVERSE_FORCE * brake; // reversing
     }
     if (handbrake) {
-      aF -= Math.sign(vF) * C.HANDBRAKE_DECEL * Math.min(1, Math.abs(vF) / 60);
+      // playtester idea: handbrake with no steering input is a straight-line
+      // brake — strong decel, no slide develops (no slip → no grip change felt)
+      const straight = Math.abs(steer) < 0.2 && absSlip < 0.15;
+      const decel = straight ? C.HANDBRAKE_STRAIGHT_DECEL : C.HANDBRAKE_DECEL;
+      aF -= Math.sign(vF) * decel * Math.min(1, Math.abs(vF) / 60);
     }
-    aF -= vF * Math.abs(vF) * C.DRAG_K;                // quadratic drag
-    aF -= vF * C.ROLL_LIN;                             // linear rolling resistance
+    // coasting glides: with no inputs, drag + rolling resistance are scaled
+    // down so lifting the throttle doesn't feel like braking
+    const coasting = throttle === 0 && brake === 0 && !handbrake;
+    const resistScale = coasting ? C.COAST_DRAG_SCALE : 1;
+    aF -= vF * Math.abs(vF) * C.DRAG_K * resistScale;   // quadratic drag
+    aF -= vF * C.ROLL_LIN * resistScale;                // linear rolling resistance
     vF += aF * dt;
 
-    const roll = C.ROLL_CONST * dt;                    // constant rolling resistance
+    // braking through zero while latched parks the car instead of reversing
+    if (this._brakeLatch && brake > 0 && vF < 0) vF = 0;
+
+    const roll = C.ROLL_CONST * resistScale * dt;       // constant rolling resistance
     if (Math.abs(vF) <= roll && throttle === 0 && brake === 0) vF = 0;
     else if (vF !== 0) vF -= Math.sign(vF) * roll;
     if (vF < -C.MAX_REVERSE) vF = -C.MAX_REVERSE;

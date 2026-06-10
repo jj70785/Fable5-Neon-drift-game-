@@ -26,6 +26,7 @@ export class DriftScore {
     this.chainTimer = 0;     // time left to chain after a drift ends
     this.active = false;     // currently accruing?
     this.bestChain = 0;      // best single banked amount (for results)
+    this.graceTimer = 0;     // post-forfeit window where contact can't re-forfeit
 
     // per-step event flags (read by the game layer)
     this.banked = 0;         // >0: points banked this step
@@ -38,18 +39,23 @@ export class DriftScore {
     this.banked = 0;
     this.forfeited = 0;
     this.multUp = false;
+    if (this.graceTimer > 0) this.graceTimer -= dt;
 
     const driftingNow = car.drifting && car.speed > S.MIN_SPEED && Math.abs(car.slip) > S.MIN_SLIP;
 
     if (this.active) {
-      if (wallImpact > 0) {
-        // wall contact mid-drift: forfeit the chunk, chain broken
+      // only a SOLID hit forfeits — feather scrapes along the wall used to
+      // re-forfeit every step and made post-crash drifts feel dead (v3 fix).
+      // The grace window stops one crash (several contact steps) from also
+      // killing the next drift started while still touching the wall.
+      if (wallImpact > S.FORFEIT_IMPACT && this.graceTimer <= 0) {
         this.forfeited = this.pending;
         this.pending = 0;
         this.mult = 1;
         this.active = false;
         this.driftTime = 0;
         this.chainTimer = 0;
+        this.graceTimer = S.FORFEIT_GRACE;
         return;
       }
       if (driftingNow) {

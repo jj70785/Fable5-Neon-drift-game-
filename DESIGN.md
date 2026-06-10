@@ -153,6 +153,22 @@ same speed leaves much less reaction time. Changes:
 | `SCORE.RATE` | 1.5 → **1.7** | Keeps Drift Attack score totals feeling the same at lower speeds. |
 | `SAVE_VERSION` | 1 → **2** | Old bests/ghosts were set under faster physics and would be unbeatable; records are stored under versioned keys so everyone starts fresh and fair. Medal targets rescale automatically (they derive from `TOP_SPEED`). |
 
+## v3 — "Flow Controls" (playtest round 2)
+
+Feedback: title screen silent until a click; mobile "the strategy is to
+never let go of the drift button"; points dead after wall hits; desktop S
+slid into reverse and lifting W braked too hard.
+
+| Change | Detail |
+| --- | --- |
+| Cruise + GAS (touch) | The car auto-cruises at `CRUISE_SPEED` 340; holding GAS gives full throttle; lifting it feeds `CRUISE_BRAKE` 0.22 above cruise. The handbrake stops being the only speed control, which is what made hold-drift-forever dominant. Throttle tapers over a 50 px/s band around cruise so the engine note settles instead of flickering. |
+| Drift-as-brake | Playtester idea: handbrake with `|steer| < 0.2` and `|slip| < 0.15` applies `HANDBRAKE_STRAIGHT_DECEL` 720 — straight-line braking with zero slide (no slip ever develops without steering). Works on desktop too. |
+| Scrape-forfeit bug | `DriftScore` forfeited on ANY wall contact, so grinding the wall after a crash re-forfeited every step and drifts felt dead. Now only impacts above `FORFEIT_IMPACT` 90 px/s forfeit, with a 0.3 s grace so one crash (several contact steps) can't double-punish. Covered by pure-node unit checks in `test/drift-check.mjs`. |
+| Brake-to-stop (desktop) | A brake latch: braking from speed clamps at 0 and holds; reverse needs a fresh press from standstill. No more surprise reversing. |
+| Coast glide (desktop) | `COAST_DRAG_SCALE` 0.15 — with no inputs, drag/rolling are scaled down so lifting W keeps ~75%+ of speed after a second. Top speed and acceleration are untouched (full-throttle equilibrium unchanged). |
+| Music | `tryAutostart()` attempts AudioContext resume at load (works on engaged origins/revisits, mostly desktop); otherwise the very first tap — still on the title screen — starts it. The web platform does not allow sound before any interaction on first visit; that's a policy, not a bug. |
+| Misc | `GRIP_DRIFT_FRAC` 0.30 → 0.32 (held drifts scrub a bit more speed), `SCORE.MIN_SPEED` 140 → 120 (points resume sooner post-crash), `SAVE_VERSION` 3 (cruise changes pace; fresh fair records). |
+
 ## Performance notes
 
 Verified by the smoke test in **headless Chromium with software

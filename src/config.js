@@ -11,7 +11,7 @@ export const CONFIG = {
   MAX_FRAME_MS: 50,         // clamp frame delta (tab-switch protection)
   MAX_STEPS_PER_FRAME: 8,   // hard cap on physics catch-up steps
   DPR_CAP: 2,               // devicePixelRatio cap (perf on 3x phones)
-  SAVE_VERSION: 2,          // bump when physics tuning invalidates old records
+  SAVE_VERSION: 3,          // bump when physics tuning invalidates old records
 
   // --- car physics (arcade drift model) -------------------------------------
   CAR: {
@@ -30,10 +30,17 @@ export const CONFIG = {
     ROLL_CONST: 28,         // constant rolling resistance, px/s^2
     TOP_SPEED: 540,         // px/s — v2: lowered from 620 after phone playtesting
                             //   (more reaction time, walls feel fair on small screens)
+    COAST_DRAG_SCALE: 0.15, // v3: drag+rolling scaled way down while coasting (no
+                            //   inputs) so lifting the throttle glides (~75% of top
+                            //   speed kept after 1 s) instead of feeling like brakes
+    CRUISE_SPEED: 340,      // v3: touch auto-throttle cruises here without GAS
+    CRUISE_BRAKE: 0.22,     // v3: brake fraction fed when above cruise, gas released
 
     GRIP_FULL: 8.8,         // lateral velocity bleed rate, 1/s (normal grip)
-    GRIP_DRIFT_FRAC: 0.30,  // drift grip = GRIP_FULL * this (~25-35% per spec)
+    GRIP_DRIFT_FRAC: 0.32,  // drift grip = GRIP_FULL * this (~25-35% per spec)
     HANDBRAKE_DECEL: 460,   // extra forward decel while handbrake held, px/s^2
+    HANDBRAKE_STRAIGHT_DECEL: 720, // v3: handbrake with no steering = real brakes
+                            //   (playtester idea: DRIFT button doubles as brake)
 
     TURN_RATE: 2.8,         // rad/s steering authority at mid speed
     STEER_REF_SPEED: 150,   // px/s where steering reaches full authority
@@ -83,8 +90,12 @@ export const CONFIG = {
     CHAIN_WINDOW: 1.5,      // s between drifts to keep the chain alive
     MULT_MAX: 8,            // multiplier cap ×1 → ×8
     DRIFT_ATTACK_TIME: 120, // s round length
-    MIN_SPEED: 140,         // px/s below which a drift stops scoring
+    MIN_SPEED: 120,         // px/s below which a drift stops scoring (v3: was 140,
+                            //   points resume sooner while rebuilding after a hit)
     MIN_SLIP: 0.16,         // rad (~9°) below which a drift stops scoring
+    FORFEIT_IMPACT: 90,     // px/s wall impact that forfeits a drift; lighter
+                            //   scrapes keep the chain (v3 playtest bug fix)
+    FORFEIT_GRACE: 0.3,     // s after a forfeit during which contact can't forfeit again
   },
 
   // --- particles ---------------------------------------------------------------

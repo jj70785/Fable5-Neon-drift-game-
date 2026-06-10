@@ -403,6 +403,18 @@ html, body {
 }
 #btn-brake:active { background: rgba(255, 45, 149, 0.3); }
 
+/* GAS sits above DRIFT so the right thumb rocks between them */
+#btn-gas {
+  right: max(32px, calc(env(safe-area-inset-right) + 12px));
+  bottom: calc(max(24px, env(safe-area-inset-bottom)) + 116px);
+  width: 84px; height: 84px;
+  font-size: 15px; letter-spacing: 0.12em;
+  border-color: rgba(255,225,77,0.85);
+  text-shadow: 0 0 8px var(--yellow);
+  box-shadow: 0 0 14px rgba(255,225,77,0.3), inset 0 0 16px rgba(255,225,77,0.12);
+}
+#btn-gas:active { background: rgba(255, 225, 77, 0.28); }
+
 #touch-top { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; }
 #touch-top .touch-btn { position: relative; width: 64px; height: 64px; font-size: 20px; opacity: 0.85; }
 
@@ -413,7 +425,7 @@ html, body {
   #hud-left { top: 10px; left: 12px; gap: 3px; }
   .hud-box { font-size: 16px; }
   #hud-delta { font-size: 14px; }
-  #hud-speed { bottom: 142px; right: 18px; }
+  #hud-speed { bottom: 244px; right: 18px; }
   #speed-text { font-size: 36px; }
   #hud-drift { top: 8px; }
   #drift-score { font-size: 22px; }

@@ -103,6 +103,55 @@ s = await car();
 check('wall kills normal velocity', s.speed < 220, `speed=${s.speed.toFixed(0)}`);
 check('no tunneling through wall', s.y < 1120, `y=${s.y.toFixed(0)}`);
 
+// --- 6. (v3) brake-to-stop: S stops the car, never slides into reverse
+await place(-700, 995, 0, 400, 0);
+await page.keyboard.down('ArrowDown');
+let minVF = 999;
+for (let i = 0; i < 15; i++) {
+  await page.waitForTimeout(100);
+  s = await car();
+  if (s.vF < minVF) minVF = s.vF;
+}
+await releaseAll();
+check('brake stops at 0, no reverse', s.speed < 10 && minVF > -1.5,
+  `speed=${s.speed.toFixed(1)} minVF=${minVF.toFixed(1)}`);
+
+// --- 7. (v3) coasting glides: lifting throttle keeps most of the speed
+await place(-900, 995, 0, 540, 0);
+await page.waitForTimeout(1000);
+s = await car();
+check('coasting keeps speed (>400 after 1s from 540)', s.speed > 400, `speed=${s.speed.toFixed(0)}`);
+
+// --- 8. (v3) handbrake while straight = hard brake, no slide
+await place(-900, 995, 0, 500, 0);
+await page.keyboard.down('Space');
+let maxStraightSlip = 0;
+for (let i = 0; i < 8; i++) {
+  await page.waitForTimeout(100);
+  s = await car();
+  const abs = Math.abs(s.slip);
+  if (abs > maxStraightSlip) maxStraightSlip = abs;
+}
+await releaseAll();
+check('drift-button-as-brake: hard stop, no slide', s.speed < 200 && maxStraightSlip < 8 && s.vF > -1.5,
+  `speed=${s.speed.toFixed(0)} maxSlip=${maxStraightSlip.toFixed(1)}°`);
+
+// --- 9. (v3) touch cruise governor + GAS
+await place(-1000, 995, 0, 0, 0);
+await page.evaluate(() => { window.__NEON.game.input.touchActive = true; });
+await page.waitForTimeout(3000);
+s = await car();
+check('touch cruise settles near CRUISE_SPEED', s.speed > 300 && s.speed < 380, `speed=${s.speed.toFixed(0)}`);
+await place(-1000, 995, 0, 340, 0);   // fresh runway — the cruise drive used up the straight
+await page.evaluate(() => { window.__NEON.game.input.touch.gas = true; });
+await page.waitForTimeout(2200);
+s = await car();
+check('GAS reaches full speed', s.speed > 480, `speed=${s.speed.toFixed(0)}`);
+await page.evaluate(() => {
+  window.__NEON.game.input.touch.gas = false;
+  window.__NEON.game.input.touchActive = false;
+});
+
 // --- fps sanity while driving
 await place(-900, 995, 0, 200, 0);
 await page.keyboard.down('ArrowUp');

@@ -119,6 +119,18 @@ export class AudioEngine {
     this.ready = true;
   }
 
+  // best-effort autoplay before any gesture: succeeds on engaged origins /
+  // revisits (mostly desktop); silently stays pending where policy blocks it
+  tryAutostart() {
+    try {
+      this.init();
+      if (!this.ready) return;
+      this.ctx.resume().then(() => {
+        if (this.ctx.state === 'running') this.startMusic();
+      }).catch(() => {});
+    } catch (e) { /* blocked — the first-gesture path will start it */ }
+  }
+
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
   }

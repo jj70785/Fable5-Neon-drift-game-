@@ -20,6 +20,7 @@ export class UI {
       debug: $('debug-overlay'),
       touch: $('touch-controls'),
       btnLeft: $('btn-left'), btnRight: $('btn-right'), btnBrake: $('btn-brake'),
+      btnGas: $('btn-gas'),
       btnPause: $('btn-pause'), btnRespawn: $('btn-respawn'),
       popupLayer: $('popup-layer'),
       countdown: $('countdown'),

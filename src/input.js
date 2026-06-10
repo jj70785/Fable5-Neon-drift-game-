@@ -1,3 +1,5 @@
+import { CONFIG } from './config.js';
+
 // Unified input: keyboard + touch produce one state object the game reads.
 //   steer: -1..1, throttle: 0..1, brake: 0..1, handbrake: bool
 //   edge-triggered actions are collected per frame via consume().
@@ -14,7 +16,7 @@ export class Input {
     this.keys = new Set();
     this.edges = new Set();      // action names pressed since last consume
     this.touchActive = false;    // becomes true on first touch interaction
-    this.touch = { left: false, right: false, brake: false };
+    this.touch = { left: false, right: false, brake: false, gas: false };
     this._touchPointers = new Map(); // pointerId -> control name
     this.onFirstGesture = null;  // hook: create/resume AudioContext
     this._gestureFired = false;
@@ -91,6 +93,7 @@ export class Input {
     if (name === 'left') this.touch.left = down;
     if (name === 'right') this.touch.right = down;
     if (name === 'brake') this.touch.brake = down;
+    if (name === 'gas') this.touch.gas = down;
     this._recompute();
   }
 
@@ -108,10 +111,26 @@ export class Input {
     this.handbrake = k.has('Space') || this.touch.brake;
   }
 
-  // auto-throttle for touch play: called by the game during races
-  effectiveThrottle() {
-    if (this.touchActive && this.throttle === 0 && this.brake === 0) return 1;
-    return this.throttle;
+  // throttle for the game to read each step.
+  // keyboard: direct (W/↑). touch: GAS held = full throttle; otherwise a
+  // cruise governor — full throttle below CRUISE_SPEED, none above, so the
+  // car settles at cruise on its own and recovers after crashes/drifts.
+  effectiveThrottle(speed) {
+    if (this.throttle > 0 || this.brake > 0) return this.throttle; // keyboard wins
+    if (!this.touchActive) return this.throttle;
+    if (this.touch.gas) return 1;
+    // taper near cruise so the throttle (and engine pitch) settles smoothly
+    const c = CONFIG.CAR.CRUISE_SPEED;
+    const t = (c + 25 - speed) / 50;
+    return t < 0 ? 0 : t > 1 ? 1 : t;
+  }
+
+  // touch engine-brake: above cruise with gas released, feed a gentle brake
+  effectiveBrake(speed) {
+    if (this.brake > 0) return this.brake;               // keyboard brake
+    if (!this.touchActive || this.touch.gas) return 0;
+    if (this.throttle > 0) return 0;
+    return speed > CONFIG.CAR.CRUISE_SPEED * 1.05 ? CONFIG.CAR.CRUISE_BRAKE : 0;
   }
 
   consume(action) {
