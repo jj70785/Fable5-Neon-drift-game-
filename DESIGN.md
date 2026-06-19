@@ -169,6 +169,52 @@ slid into reverse and lifting W braked too hard.
 | Music | `tryAutostart()` attempts AudioContext resume at load (works on engaged origins/revisits, mostly desktop); otherwise the very first tap — still on the title screen — starts it. The web platform does not allow sound before any interaction on first visit; that's a policy, not a bug. |
 | Misc | `GRIP_DRIFT_FRAC` 0.30 → 0.32 (held drifts scrub a bit more speed), `SCORE.MIN_SPEED` 140 → 120 (points resume sooner post-crash), `SAVE_VERSION` 3 (cruise changes pace; fresh fair records). |
 
+## v4 — surfaces, scenery, two new maps, and Grand Prix
+
+A big content + feature drop from player requests ("more maps, wider tracks,
+mud/ice, AI racers").
+
+### Surfaces (`config.SURFACE`, `track.surfaceAt`, `physics.js`)
+Circular patches on the road, detected by a cheap distance scan (a handful
+per track). Modifiers applied inside `Car.step`:
+- **Ice** — grip ×0.22, steering ×0.85, drift trips at ~7.5° slip. You slide
+  everywhere; recoverable but hairy. Frost glints off the tyres.
+- **Mud** — grip ×1.5 (digs in, *cannot* drift), throttle ×0.55, +3.2/s drag
+  and a 300 px/s soft cap. A tempting corner-cut that costs you real speed.
+- **Boost** — shoves the car along the track-forward direction up to 760
+  px/s. Chevron pad animates live; ice/mud are baked into the track base.
+
+AI rivals feel surfaces too, so a badly-placed line punishes everyone.
+
+### Roadside scenery (`track._buildScenery`)
+Procedural, seeded, baked once on race start into an offscreen layer drawn
+under the ribbon: top-down palms, neon billboards, light poles, and barrier
+studs hugging the outer wall. Lazy (built in `bake()`, not for all 5 tracks
+at the menu) to keep startup memory sane.
+
+### Tracks
+Existing three widened (Sunset 150→168, Royale 118→132, Vice 132→150 — also
+eases the "walls feel close" feedback). Two new: **Aurora Bay** (flowing
+coastal, width 170) and **Toxic Mile** (technical hazard loop, width 142).
+Medal targets auto-derive from length × `TOP_SPEED`.
+
+### Grand Prix + AI (`ai.js`, `_gpStep`)
+Player + 3 rivals, each a real `Car`. The `AIDriver` is pure-pursuit: track
+the nearest centerline index, aim at a speed-scaled lookahead point, and set
+target speed from the curvature ahead (brake for corners, flat-out on
+straights, handbrake-flick the tightest hairpins). Per-rival skill (0.88 →
+0.99) and a lateral line offset stop them stacking; light rubber-banding
+(`speedScale` from lap-gap) keeps races close. Contact is a soft circle-push
+(O(4²)). Positions = `(lap-1)·n + nearestIdx`, finished racers ranked by
+finish time. A subtle but important detail: the *player's* car is always
+`game.car`, never `racers[0]` — that array is sorted by position every
+frame, so `racers[0]` is whoever's leading.
+
+### Save versioning
+`SAVE_VERSION` 3 → 4: wider tracks + surfaces change lap pace, so old Time
+Trial / Drift records and ghosts are retired. GP stores best finishing
+position per track under `gp.<id>.v4`.
+
 ## Performance notes
 
 Verified by the smoke test in **headless Chromium with software

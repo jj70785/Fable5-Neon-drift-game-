@@ -104,7 +104,8 @@ export const CONFIG = {
     ICE_DRIFT_ENTER: 0.13,  // rad: ice trips a drift at a much lower slip angle
     ICE_STEER: 0.85,        // steering authority scale on ice (vague)
     MUD_GRIP: 1.5,          // grip multiplier in mud (no sliding — digs in)
-    MUD_DRAG: 5.2,          // extra linear drag (1/s) in mud — scrubs speed hard
+    MUD_DRAG: 3.2,          // extra linear drag (1/s) in mud — scrubs speed hard
+                            //   (a patch costs you a chunk of speed, not a dead stop)
     MUD_THROTTLE: 0.55,     // throttle authority scale in mud (bogs down)
     MUD_MAX_SPEED: 300,     // px/s soft cap while in mud
     BOOST_FORCE: 1700,      // px/s^2 forward shove on a boost pad

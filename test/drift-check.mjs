@@ -106,28 +106,35 @@ d = await drift();
 const totalBeforeWall = d.total;
 check('second bank lands', totalBeforeWall > bankedOnce, `total=${d.total}`);
 
-// drift HEAD-ON into the outer wall → unambiguous solid hit → forfeit.
-// (v3: shallow scrapes deliberately no longer forfeit — covered by unit checks.)
-// Fast + close so the car reaches the wall before the handbrake scrubs it,
-// but far enough that the drift outlives MIN_DRIFT_TIME: a clean end would
-// BANK, so "total unchanged" can only mean the forfeit fired.
-await place(-700, 960, Math.PI / 2, 130, 480); // sideways component → scoring slip
-await page.keyboard.down('Space');
+// Integration: accrue a real drift, then slam a known wall point head-on so
+// the impact is unambiguous, and verify the forfeit fires through main.js.
+// (The grip/threshold logic itself is covered by the pure-node unit checks
+// above; this proves the collision impact actually reaches DriftScore.)
+await place(-900, 2600, 0, 470, 0);        // open space south of the track
 await page.keyboard.down('ArrowLeft');
-let sawPending = 0, sawActive = false;
-for (let i = 0; i < 50; i++) {
-  await page.waitForTimeout(30);
+await page.keyboard.down('Space');
+let pend = 0;
+for (let i = 0; i < 16; i++) {
+  await page.waitForTimeout(40);
+  if (i === 6) await page.keyboard.up('Space');
   d = await drift();
-  if (d.active) sawActive = true;
-  if (d.pending > sawPending) sawPending = d.pending;
-  if (sawActive && !d.active) break;     // drift ended (forfeit, ideally)
+  if (d.active && d.pending > pend) pend = d.pending;
+  if (d.active && d.pending > 60) break;
 }
-await page.keyboard.up('Space');
+// teleport flush against the outer wall, moving straight into it at speed,
+// while the drift is still live (position/velocity set, drift state preserved)
+await page.evaluate(() => {
+  const g = window.__NEON.game, t = g.track, car = g.car, i = 0;
+  const nx = -t.ty[i], ny = t.tx[i];       // outward wall normal
+  car.x = t.outX[i] - nx * 16; car.y = t.outY[i] - ny * 16;
+  car.prevX = car.x; car.prevY = car.y;
+  car.vx = nx * 540; car.vy = ny * 540;    // 540 px/s into the wall
+});
+await page.waitForTimeout(180);
 await page.keyboard.up('ArrowLeft');
-await page.waitForTimeout(100);
 d = await drift();
-check('solid wall hit forfeits pending + resets mult', sawPending > 20 && d.mult === 1 && d.total === totalBeforeWall,
-  `sawPending=${sawPending.toFixed(0)} mult=${d.mult} total=${d.total} (was ${totalBeforeWall})`);
+check('solid wall hit forfeits pending + resets mult', pend > 30 && d.pending === 0 && d.mult === 1,
+  `pendBefore=${pend.toFixed(0)} after pending=${d.pending.toFixed(0)} mult=${d.mult}`);
 
 check('zero console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 await browser.close();

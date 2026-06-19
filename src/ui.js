@@ -13,6 +13,7 @@ export class UI {
     this.el = {
       hud: $('hud'), lap: $('lap-text'), time: $('time-text'),
       deltaBox: $('hud-delta'), delta: $('delta-text'),
+      posBox: $('hud-pos'), pos: $('pos-text'),
       speed: $('speed-text'),
       driftBox: $('hud-drift'), driftScore: $('drift-score'),
       driftPending: $('drift-pending'), driftMult: $('drift-mult'), driftTimer: $('drift-timer'),
@@ -25,7 +26,7 @@ export class UI {
       popupLayer: $('popup-layer'),
       countdown: $('countdown'),
       title: $('menu-title'), select: $('menu-select'), pause: $('menu-pause'), results: $('menu-results'),
-      modeTime: $('mode-time'), modeDrift: $('mode-drift'), modeDesc: $('mode-desc'),
+      modeTime: $('mode-time'), modeDrift: $('mode-drift'), modeGP: $('mode-gp'), modeDesc: $('mode-desc'),
       trackRow: $('track-row'),
       setMusic: $('set-music'), setSfx: $('set-sfx'), setShake: $('set-shake'),
       setHaptics: $('set-haptics'),
@@ -35,7 +36,7 @@ export class UI {
     };
 
     // HUD value caches (avoid DOM writes when nothing changed)
-    this._c = { speed: -1, lap: '', time: '', score: -1, pending: -1, mult: -1, timer: '', delta: '' };
+    this._c = { speed: -1, lap: '', time: '', score: -1, pending: -1, mult: -1, timer: '', delta: '', pos: -1 };
 
     // pooled floating popups
     this.popups = [];
@@ -54,6 +55,7 @@ export class UI {
     const cb = this.cb;
     this.el.modeTime.addEventListener('click', () => this.setMode('time'));
     this.el.modeDrift.addEventListener('click', () => this.setMode('drift'));
+    this.el.modeGP.addEventListener('click', () => this.setMode('gp'));
     $('pause-resume').addEventListener('click', () => cb.onResume());
     $('pause-restart').addEventListener('click', () => cb.onRestart());
     $('pause-quit').addEventListener('click', () => cb.onQuit());
@@ -71,9 +73,11 @@ export class UI {
     this.mode = mode;
     this.el.modeTime.classList.toggle('active', mode === 'time');
     this.el.modeDrift.classList.toggle('active', mode === 'drift');
-    this.el.modeDesc.textContent = mode === 'time'
-      ? '3 laps against the clock. Beat medal times, race your ghost.'
-      : '120 seconds. Chain drifts to multiply your score — walls forfeit the chain.';
+    this.el.modeGP.classList.toggle('active', mode === 'gp');
+    this.el.modeDesc.textContent =
+      mode === 'time' ? '3 laps against the clock. Beat medal times, race your ghost.'
+        : mode === 'drift' ? '120 seconds. Chain drifts to multiply your score — walls forfeit the chain.'
+          : 'Race 3 rivals over 3 laps. Bump, drift and boost your way to the podium.';
     if (this.cb.onModeChange) this.cb.onModeChange(mode);
   }
 
@@ -139,6 +143,10 @@ export class UI {
   showTouch(on) { this.el.touch.classList.toggle('hidden', !on); }
   showDriftHud(on) { this.el.driftBox.classList.toggle('hidden', !on); }
   showLap(on) { $('hud-lap').classList.toggle('hidden', !on); }
+  showPos(on) { this.el.posBox.classList.toggle('hidden', !on); }
+  setPos(place) {
+    if (place !== this._c.pos) { this._c.pos = place; this.el.pos.textContent = 'P' + place; }
+  }
 
   // ---- HUD setters (cached) ----
   setSpeed(kmh) {

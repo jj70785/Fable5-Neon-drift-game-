@@ -11,9 +11,15 @@ synthesized live with the Web Audio API.
 
 ## The game
 
-- **3 handcrafted neon tracks** — *Sunset Loop* (fast & flowing), *Circuit
+- **5 handcrafted neon tracks** — *Sunset Loop* (fast & flowing), *Circuit
   Royale* (chicanes + a hairpin), *Vice Spiral* (high-speed sweepers into
-  tight hairpins).
+  tight hairpins), *Aurora Bay* (long coastal sweepers), and *Toxic Mile*
+  (a hazard playground). All laced with **surface hazards**: 🧊 ice that
+  sends you sliding, 🟤 mud that scrubs your speed and kills drifts, and ⚡
+  boost pads that fling you down the straights.
+- **Grand Prix** — race **3 AI rivals** over 3 laps with live positions and
+  a podium finish. They use your exact car physics (fair), brake for
+  corners, draft, bump, and rubber-band so it stays close and winnable.
 - **Time Trial** — 3 laps against the clock. Bronze / silver / gold medal
   targets per track, live delta vs. your best at every checkpoint, and your
   best run replayed as a translucent **ghost car**.
@@ -21,7 +27,8 @@ synthesized live with the Web Audio API.
   slide (speed × angle), chain drifts within 1.5 s to build a **×8
   multiplier**, bank points by straightening out — touch a wall mid-drift
   and the unbanked chunk is gone.
-- Persistent skid marks, pooled tire smoke, wall sparks, screen shake,
+- Roadside scenery (palms, billboards, neon barriers), persistent skid
+  marks, pooled tire smoke, frost & mud spray, wall sparks, screen shake,
   slow-mo finishes, confetti, a generative synthwave soundtrack, and a car
   that's genuinely fun to throw sideways.
 

@@ -16,6 +16,7 @@ import { Particles } from './particles.js';
 import { SkidMarks } from './skidmarks.js';
 import { AudioEngine } from './audio.js';
 import { GhostRecorder, GhostPlayer, saveGhost, loadGhost } from './ghost.js';
+import { AIDriver, RIVALS } from './ai.js';
 
 const STATE = {
   TITLE: 'title',
@@ -118,6 +119,48 @@ function makeCarSprite(ghost) {
   return c;
 }
 
+function hexRgbStr(hex) {
+  return `${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)}`;
+}
+
+// rival car wedge in a given neon colour (player keeps the cyan/white sprite)
+function makeRivalSprite(hex) {
+  const S = 140, c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const g = c.getContext('2d');
+  g.translate(S / 2, S / 2);
+  g.scale(2, 2);
+  const rgb = hexRgbStr(hex);
+  const glow = g.createRadialGradient(0, 0, 4, 0, 0, 33);
+  glow.addColorStop(0, `rgba(${rgb},0.50)`);
+  glow.addColorStop(0.55, `rgba(${rgb},0.16)`);
+  glow.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = glow;
+  g.fillRect(-34, -34, 68, 68);
+  g.beginPath();
+  g.moveTo(21, 0); g.lineTo(13, -7.5); g.lineTo(-13, -10.5); g.lineTo(-17, -6.5);
+  g.lineTo(-17, 6.5); g.lineTo(-13, 10.5); g.lineTo(13, 7.5);
+  g.closePath();
+  const paint = g.createLinearGradient(21, 0, -17, 0);
+  paint.addColorStop(0, '#ffffff');
+  paint.addColorStop(0.42, hex);
+  paint.addColorStop(1, `rgba(${rgb},0.65)`);
+  g.fillStyle = paint;
+  g.fill();
+  g.strokeStyle = `rgba(${rgb},0.95)`;
+  g.lineWidth = 1.5;
+  g.stroke();
+  g.beginPath();
+  g.moveTo(7, 0); g.lineTo(1, -5); g.lineTo(-8, -6); g.lineTo(-8, 6); g.lineTo(1, 5);
+  g.closePath();
+  g.fillStyle = '#0b1736';
+  g.fill();
+  // rear light bar
+  g.fillStyle = hex;
+  g.fillRect(-17.4, -7.5, 2.2, 15);
+  return c;
+}
+
 function makeStarTile() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
@@ -213,6 +256,8 @@ class Game {
     // render assets (allocated once)
     this.carSprite = makeCarSprite(false);
     this.ghostSprite = makeCarSprite(true);
+    this.rivalSprites = RIVALS.map((r) => makeRivalSprite(r.color));
+    this.racers = [];                  // Grand Prix field (player + rivals)
     this.starTile = makeStarTile();
     this.starPattern = null;           // created lazily (needs ctx)
     this.miniCtx = null;
@@ -287,6 +332,8 @@ class Game {
       get phase() { return self.race ? self.race.phase : null; },
       get car() { return self.car; },
       get drift() { return self.drift; },
+      get racers() { return self.racers; },
+      get place() { return self.race ? self.race.place : null; },
       get fpsAvg() { return self.fpsAvg; },
       get particlesLive() { return self.particles.live; },
       test: {
@@ -373,14 +420,21 @@ class Game {
       this.ghostRec.stop();
     }
 
+    // Grand Prix: build the field (player + 3 rivals) on a starting grid
+    this.racers = [];
+    this._lastSurfT = '';
+    if (this.mode === 'gp') this._setupGrandPrix();
+    this.race.place = 1;
+
     this.cam.x = sp.x; this.cam.y = sp.y;
     this.cam.zoom = this.viewScale * CONFIG.CAMERA.ZOOM_BASE;
     this.cam.punch = 0; this.cam.shakeAmp = 0;
 
     this.ui.showScreen(null);
     this.ui.showHud(true);
-    this.ui.showLap(this.mode === 'time');
+    this.ui.showLap(this.mode !== 'drift');
     this.ui.showDriftHud(this.mode === 'drift');
+    this.ui.showPos(this.mode === 'gp');
     if (this.mode === 'drift') this.ui.setDriftTimer('2:00', false); else this.ui.hideDriftTimer();
     this.ui.setDelta(null);
     this.ui.clearPopups();
@@ -396,6 +450,141 @@ class Game {
       }
       this._grabWakeLock();
     }
+  }
+
+  // ------------------------------------------------------------- Grand Prix
+  _nearestIdx(x, y) {
+    const t = this.track; let best = 0, bd = 1e18;
+    for (let i = 0; i < t.n; i++) {
+      const dx = t.cx[i] - x, dy = t.cy[i] - y;
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  _setupGrandPrix() {
+    const t = this.track, sp = t.startPose;
+    const tx = Math.cos(sp.heading), ty = Math.sin(sp.heading);
+    const nx = -ty, ny = tx;
+    const slots = [[130, -42], [130, 42], [50, -42], [50, 42]];
+    this.racers = [];
+    for (let i = 0; i < 4; i++) {
+      const [f, s] = slots[i];
+      const px = sp.x + tx * f + nx * s;
+      const py = sp.y + ty * f + ny * s;
+      let car, ai = null, name, colorIdx;
+      if (i === 0) { car = this.car; name = 'YOU'; colorIdx = -1; }
+      else {
+        car = new Car();
+        ai = new AIDriver(t, 0.88 + (i - 1) * 0.055, ((i % 2) ? 1 : -1) * (14 + (i - 1) * 8));
+        name = RIVALS[i - 1].name; colorIdx = i - 1;
+      }
+      car.reset(px, py, sp.heading);
+      const idx = this._nearestIdx(px, py);
+      if (ai) ai.reset(idx);
+      this.racers.push({
+        car, ai, isPlayer: i === 0, name, colorIdx,
+        lap: 1, expected: 1, lastGate: 0, idx, progress: 0,
+        finished: false, finishTime: 0, place: i + 1,
+      });
+    }
+    this.playerRacer = this.racers[0];
+  }
+
+  // advance a racer's nearest-centerline marker within a forward window
+  _advanceIdx(R) {
+    const t = this.track, n = t.n, car = R.car;
+    let best = R.idx, bd = 1e18;
+    for (let k = -2; k < 26; k++) {
+      const i = (R.idx + k + n) % n;
+      const dx = t.cx[i] - car.x, dy = t.cy[i] - car.y;
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  // one GP tick: drive the rivals, resolve contact, track laps, rank places.
+  // (the player's car has already been stepped by the main fixedStep)
+  _gpStep(h) {
+    const t = this.track, race = this.race;
+    const locked = race.phase !== 'running';
+
+    for (const R of this.racers) {
+      if (R.isPlayer) { R.idx = this._advanceIdx(R); continue; }
+      const c = R.ai.control(R.car, locked || R.finished);
+      const surf = t.surfaceAt(R.car.x, R.car.y);
+      R.car.step(h, c.steer, c.throttle, c.brake, c.handbrake, surf);
+      t.collideCar(R.car);
+      R.idx = R.ai.idx;
+      if (R.car.drifting && R.car.speed > 150 && this.particles.live < this.particles.n - 60) {
+        this.particles.emitSmoke(R.car.x, R.car.y, R.car.vx, R.car.vy, 0.35, h);
+      }
+    }
+
+    this._resolveCarCollisions();
+
+    // lap / checkpoint tracking per racer (ordered gates block shortcuts)
+    for (const R of this.racers) {
+      if (R.finished) continue;
+      if (t.crossedGate(R.expected, R.car.prevX, R.car.prevY, R.car.x, R.car.y)) {
+        R.lastGate = R.expected;
+        if (R.expected === 0) {
+          R.lap++;
+          if (R.lap > CONFIG.RACE.LAPS) { R.finished = true; R.finishTime = race.time; }
+        }
+        R.expected = (R.expected + 1) % t.gates.length;
+      }
+    }
+
+    this._computePlaces();
+
+    // light rubber-banding: rivals ease off when ahead, push when behind
+    const pp = this.playerRacer.progress, n = t.n;
+    for (const R of this.racers) {
+      if (!R.ai) continue;
+      const gapLaps = (R.progress - pp) / n;
+      R.ai.speedScale = clamp(1 - gapLaps * 0.42, 0.9, 1.14);
+    }
+
+    const me = this.playerRacer;
+    race.place = me.place;
+    race.lap = Math.min(me.lap, CONFIG.RACE.LAPS);
+    if (me.finished && race.phase === 'running') this.finishRace();
+  }
+
+  _resolveCarCollisions() {
+    const R = this.racers, minD = 31, minD2 = minD * minD;
+    for (let i = 0; i < R.length; i++) {
+      for (let j = i + 1; j < R.length; j++) {
+        const a = R[i].car, b = R[j].car;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < minD2 && d2 > 0.01) {
+          const d = Math.sqrt(d2), push = (minD - d) / 2;
+          const ux = dx / d, uy = dy / d;
+          a.x -= ux * push; a.y -= uy * push;
+          b.x += ux * push; b.y += uy * push;
+          const avn = a.vx * ux + a.vy * uy, bvn = b.vx * ux + b.vy * uy;
+          const ex = 0.5 * (bvn - avn);
+          a.vx += ux * ex; a.vy += uy * ex;
+          b.vx -= ux * ex; b.vy -= uy * ex;
+        }
+      }
+    }
+  }
+
+  _computePlaces() {
+    const a = this.racers, n = this.track.n;
+    for (const r of a) r.progress = (r.lap - 1) * n + r.idx;
+    a.sort((x, y) => {
+      if (x.finished && y.finished) return x.finishTime - y.finishTime;
+      if (x.finished) return -1;
+      if (y.finished) return 1;
+      return y.progress - x.progress;
+    });
+    for (let i = 0; i < a.length; i++) a[i].place = i + 1;
   }
 
   _grabWakeLock() {
@@ -486,6 +675,19 @@ class Game {
       race.isNewBest = !prev || this.drift.total > prev;
       if (race.isNewBest && this.drift.total > 0) storage.set(key, this.drift.total);
       race.prevBest = prev;
+    } else if (this.mode === 'gp') {
+      this._computePlaces();
+      const place = this.playerRacer.place;
+      race.place = place;
+      const key = `gp.${this.track.def.id}.v${CONFIG.SAVE_VERSION}`;
+      const prev = storage.get(key, null);
+      race.isNewBest = !prev || place < prev;
+      if (race.isNewBest) storage.set(key, place);
+      race.prevBest = prev;
+      race.standings = this.racers.map((r) => ({
+        name: r.name, place: r.place, isPlayer: r.isPlayer,
+        finished: r.finished, finishTime: r.finishTime,
+      }));
     }
   }
 
@@ -514,7 +716,7 @@ class Game {
           `GOLD ${fmtTimeShort(m.gold)} · SILVER ${fmtTimeShort(m.silver)} · BRONZE ${fmtTimeShort(m.bronze)}`,
         ],
       });
-    } else {
+    } else if (this.mode === 'drift') {
       const score = this.drift.total;
       const lines = [`BIGGEST CHAIN   +${this.drift.bestChain.toLocaleString('en-US')}`];
       if (race.prevBest) lines.push(`PREVIOUS BEST   ${Math.floor(race.prevBest).toLocaleString('en-US')}`);
@@ -525,6 +727,20 @@ class Game {
         medal: null,
         lines,
         targets: [`${this.track.name} · DRIFT ATTACK`],
+      });
+    } else { // grand prix
+      const place = race.place || 4;
+      const ord = ['1ST', '2ND', '3RD', '4TH'];
+      const medal = place === 1 ? 'gold' : place === 2 ? 'silver' : place === 3 ? 'bronze' : null;
+      const lines = (race.standings || []).map(
+        (s) => `P${s.place}   ${s.name}${s.isPlayer ? '   ◄ YOU' : ''}`);
+      this.ui.showResults({
+        title: place === 1 ? 'VICTORY!' : 'FINISH',
+        main: ord[place - 1] || `P${place}`,
+        isNewBest: !!race.isNewBest,
+        medal,
+        lines,
+        targets: [`${this.track.name} · GRAND PRIX`],
       });
     }
   }
@@ -544,9 +760,12 @@ class Game {
           { tier: 'silver', label: `S ${fmtTimeShort(m.silver)}`, earned: best && best.total <= m.silver },
           { tier: 'bronze', label: `B ${fmtTimeShort(m.bronze)}`, earned: best && best.total <= m.bronze },
         ];
-      } else {
+      } else if (mode === 'drift') {
         const hs = storage.get(`drift.${def.id}.v${CONFIG.SAVE_VERSION}`, null);
         if (hs) bestText = `BEST ${Math.floor(hs).toLocaleString('en-US')}`;
+      } else { // grand prix
+        const p = storage.get(`gp.${def.id}.v${CONFIG.SAVE_VERSION}`, null);
+        if (p) bestText = `BEST FINISH  P${p}`;
       }
       return { name: def.name, diff: def.diff, thumb: track.mini.canvas, bestText, medals };
     });
@@ -747,40 +966,45 @@ class Game {
 
     if (race.phase === 'running') {
       race.time += h;
-      if (this.mode === 'time') this.ghostRec.sample(h, car);
 
-      if (this.mode === 'drift') {
-        this.drift.step(h, car, impact);
-        if (this.drift.banked > 0) this._onBank(this.drift.banked, this.drift.mult);
-        if (this.drift.forfeited > 1) this._onForfeit(this.drift.forfeited);
-        if (this.drift.multUp) {
-          this.ui.setDriftPending(this.drift.pending, this.drift.mult);
-          this.audio.multUp(this.drift.mult);
-        }
-      }
+      if (this.mode === 'gp') {
+        this._gpStep(h);
+      } else {
+        if (this.mode === 'time') this.ghostRec.sample(h, car);
 
-      // checkpoint gates: must be crossed in order (blocks shortcuts)
-      if (this.track.crossedGate(race.expected, car.prevX, car.prevY, car.x, car.y)) {
-        race.lastGate = race.expected;
-        // live delta vs the best run's split at this same gate index
-        if (race.bestSplits && race.splits.length < race.bestSplits.length) {
-          race.delta = race.time - race.bestSplits[race.splits.length];
-          race.deltaTimer = 2.6;
+        if (this.mode === 'drift') {
+          this.drift.step(h, car, impact);
+          if (this.drift.banked > 0) this._onBank(this.drift.banked, this.drift.mult);
+          if (this.drift.forfeited > 1) this._onForfeit(this.drift.forfeited);
+          if (this.drift.multUp) {
+            this.ui.setDriftPending(this.drift.pending, this.drift.mult);
+            this.audio.multUp(this.drift.mult);
+          }
         }
-        race.splits.push(race.time);
-        if (race.expected === 0) {
-          const lapT = race.time - race.lapStart;
-          race.lapTimes.push(lapT);
-          race.lapStart = race.time;
-          race.lap++;
-          if (this.mode === 'time' && race.lap > CONFIG.RACE.LAPS) this.finishRace();
-        }
-        race.expected = (race.expected + 1) % this.track.gates.length;
-      }
 
-      if (this.mode === 'drift') {
-        race.remaining -= h;
-        if (race.remaining <= 0) { race.remaining = 0; this.finishRace(); }
+        // checkpoint gates: must be crossed in order (blocks shortcuts)
+        if (this.track.crossedGate(race.expected, car.prevX, car.prevY, car.x, car.y)) {
+          race.lastGate = race.expected;
+          // live delta vs the best run's split at this same gate index
+          if (race.bestSplits && race.splits.length < race.bestSplits.length) {
+            race.delta = race.time - race.bestSplits[race.splits.length];
+            race.deltaTimer = 2.6;
+          }
+          race.splits.push(race.time);
+          if (race.expected === 0) {
+            const lapT = race.time - race.lapStart;
+            race.lapTimes.push(lapT);
+            race.lapStart = race.time;
+            race.lap++;
+            if (this.mode === 'time' && race.lap > CONFIG.RACE.LAPS) this.finishRace();
+          }
+          race.expected = (race.expected + 1) % this.track.gates.length;
+        }
+
+        if (this.mode === 'drift') {
+          race.remaining -= h;
+          if (race.remaining <= 0) { race.remaining = 0; this.finishRace(); }
+        }
       }
     }
   }
@@ -940,6 +1164,9 @@ class Game {
       }
     }
 
+    // rival cars (Grand Prix) sit under the player
+    if (this.mode === 'gp') this._drawRivals(ctx);
+
     // car shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
@@ -958,6 +1185,25 @@ class Game {
 
     // minimap
     this._drawMinimap(ix, iy, ghostDrawn ? this._ghostPose : null);
+  }
+
+  _drawRivals(ctx) {
+    const a = this.alpha;
+    for (const R of this.racers) {
+      if (R.isPlayer) continue;
+      const ix = lerp(R.car.prevX, R.car.x, a);
+      const iy = lerp(R.car.prevY, R.car.y, a);
+      const ih = angleLerp(R.car.prevHeading, R.car.heading, a);
+      ctx.fillStyle = 'rgba(0,0,0,0.32)';
+      ctx.beginPath();
+      ctx.ellipse(ix + 3, iy + 5, 22, 14, ih, 0, TAU);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(ix, iy);
+      ctx.rotate(ih);
+      ctx.drawImage(this.rivalSprites[R.colorIdx], -35, -35, 70, 70);
+      ctx.restore();
+    }
   }
 
   _drawTrail(ctx, fxDt) {
@@ -1038,7 +1284,17 @@ class Game {
       g.fillStyle = 'rgba(244,247,255,0.85)';
       g.beginPath(); g.arc(q.x, q.y, 6, 0, TAU); g.fill();
     }
-    g.fillStyle = '#ff2d95';
+    // rival dots (Grand Prix)
+    if (this.mode === 'gp') {
+      const tmp = this._miniTmp3 || (this._miniTmp3 = { x: 0, y: 0 });
+      for (const R of this.racers) {
+        if (R.isPlayer) continue;
+        const q = track.worldToMini(R.car.x, R.car.y, tmp);
+        g.fillStyle = RIVALS[R.colorIdx].color;
+        g.beginPath(); g.arc(q.x, q.y, 6, 0, TAU); g.fill();
+      }
+    }
+    g.fillStyle = '#00f0ff';
     g.beginPath(); g.arc(p.x, p.y, 9, 0, TAU); g.fill();
     g.fillStyle = '#ffffff';
     g.beginPath(); g.arc(p.x, p.y, 4, 0, TAU); g.fill();
@@ -1056,6 +1312,11 @@ class Game {
       } else {
         ui.setDelta(null);
       }
+    } else if (this.mode === 'gp') {
+      ui.setLap(`${Math.min(race.lap, CONFIG.RACE.LAPS)}/${CONFIG.RACE.LAPS}`);
+      ui.setPos(race.place || 1);
+      ui.setTime(fmtTime(race.phase === 'finished' ? race.total : race.time));
+      ui.setDelta(null);
     } else {
       const r = Math.max(0, race.remaining);
       const m = Math.floor(r / 60), s = Math.floor(r % 60);

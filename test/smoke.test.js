@@ -100,6 +100,18 @@ const browser = await chromium.launch();
   await page.waitForFunction(() => window.__NEON.state === 'title');
   check('desktop: back to main menu', true);
 
+  // Grand Prix mode is present and spawns a full field of rivals
+  check('desktop: grand prix mode button present',
+    await page.evaluate(() => !!document.getElementById('mode-gp')));
+  const gpField = await page.evaluate(async () => {
+    window.__NEON.test.start(0, 'gp');
+    await new Promise((r) => setTimeout(r, 120));
+    const n = window.__NEON.racers.length;
+    window.__NEON.game.quitToTitle();
+    return n;
+  });
+  check('desktop: grand prix spawns player + 3 rivals', gpField === 4, `racers=${gpField}`);
+
   check('desktop: zero console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   await page.close();
 }
