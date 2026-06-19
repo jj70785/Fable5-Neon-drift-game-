@@ -61,8 +61,13 @@ export const CONFIG = {
 
   // --- wall collisions -------------------------------------------------------
   WALL: {
-    TANGENT_KEEP: 0.7,      // tangential velocity kept on impact (speed scrub)
+    TANGENT_KEEP: 0.6,      // tangential velocity kept on a solid impact (was 0.7)
     BOUNCE: 0.18,           // normal restitution (small bounce, never glue)
+    RIDE_DECEL: 430,        // px/s^2 speed bled PER SECOND of wall contact — so
+                            //   scraping along a wall ("hold gas, let the corner
+                            //   steer you") murders your speed instead of working.
+                            //   A brief tap costs almost nothing; a sustained
+                            //   wall-ride scrubs you from top speed to a crawl in ~1s.
     SPARK_MIN_IMPACT: 60,   // px/s normal speed to spawn sparks
     SHAKE_SCALE: 1 / 950,   // impact speed → shake amount
     SHAKE_MAX: 10,          // px max shake amplitude

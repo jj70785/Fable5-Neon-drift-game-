@@ -517,7 +517,7 @@ class Game {
       const c = R.ai.control(R.car, locked || R.finished);
       const surf = t.surfaceAt(R.car.x, R.car.y);
       R.car.step(h, c.steer, c.throttle, c.brake, c.handbrake, surf);
-      t.collideCar(R.car);
+      t.collideCar(R.car, h);
       R.idx = R.ai.idx;
       if (R.car.drifting && R.car.speed > 150 && this.particles.live < this.particles.n - 60) {
         this.particles.emitSmoke(R.car.x, R.car.y, R.car.vx, R.car.vy, 0.35, h);
@@ -926,7 +926,7 @@ class Game {
 
     const surf = this.track.surfaceAt(car.x, car.y);
     car.step(h, steer, throttle, brake, hb, surf);
-    const impact = this.track.collideCar(car);
+    const impact = this.track.collideCar(car, h);
     if (impact > 0) this._onWallHit(impact);
 
     // surface effects + boost sting (edge-triggered)

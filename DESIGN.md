@@ -215,6 +215,25 @@ frame, so `racers[0]` is whoever's leading.
 Trial / Drift records and ghosts are retired. GP stores best finishing
 position per track under `gp.<id>.v4`.
 
+## Wall punishment (experimental — branch `claude/wall-punish`)
+
+Playtest ask: hitting/scraping walls should hurt, so "hold the gas and let the
+corner steer you off the wall" stops being a viable line.
+
+- `WALL.RIDE_DECEL` (430 px/s²): once per step, if the car touched a wall at
+  all, a fixed amount of speed is bled (deceleration model, applied in
+  `Track.collideCar` which now takes `dt`). A brief tap costs almost nothing
+  (`RIDE_DECEL · h` ≈ 3.6 px/s); a sustained wall-ride sheds you to a crawl in
+  about a second. Predictable and dt-correct, unlike a per-contact multiplier.
+- `WALL.TANGENT_KEEP` 0.7 → 0.6: solid hits also scrub a bit more.
+- Tuned to crush wall-riding to a slow speed (~100–250) but **never a dead
+  stop** — the original "walls are never glue" rule still holds. Verified by
+  `test/wall-check.mjs`: open-road driving is untouched (535), worst-case
+  wall-ride caps ~96, a glancing tap keeps most speed (~490).
+
+Kept on a branch so it can be felt before deciding whether it belongs in the
+main game; merge to deploy.
+
 ## Performance notes
 
 Verified by the smoke test in **headless Chromium with software

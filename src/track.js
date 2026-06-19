@@ -766,7 +766,7 @@ export class Track {
   // ---- collision ----
   // Tests three circles along the car body against nearby wall segments.
   // Returns the strongest impact speed this tick (0 = no contact).
-  collideCar(car) {
+  collideCar(car, dt = 0) {
     let maxImpact = 0;
     this.lastHit.impact = 0;
     const cos = Math.cos(car.heading), sin = Math.sin(car.heading);
@@ -784,6 +784,16 @@ export class Track {
         if (imp > maxImpact) maxImpact = imp;
       }
       if (!hitThisPass) break;
+    }
+    // wall-ride friction: once per step, if the car touched a wall at all,
+    // bleed a fixed amount of speed. Brief taps cost almost nothing; riding a
+    // wall through a corner sheds speed fast, so it never pays to do it.
+    if (maxImpact > 0 && dt > 0) {
+      const sp = Math.hypot(car.vx, car.vy);
+      if (sp > 1) {
+        const k = Math.max(0, sp - CONFIG.WALL.RIDE_DECEL * dt) / sp;
+        car.vx *= k; car.vy *= k;
+      }
     }
     return maxImpact;
   }
