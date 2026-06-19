@@ -702,9 +702,22 @@ class Game {
       }
     }
 
-    car.step(h, steer, throttle, brake, hb);
+    const surf = this.track.surfaceAt(car.x, car.y);
+    car.step(h, steer, throttle, brake, hb, surf);
     const impact = this.track.collideCar(car);
     if (impact > 0) this._onWallHit(impact);
+
+    // surface effects + boost sting (edge-triggered)
+    if (surf && car.speed > 80) {
+      if (surf.t === 'mud') {
+        this.particles.emitSurface('mud', car.x, car.y, car.vx, car.vy, h);
+      } else if (surf.t === 'ice' && (car.drifting || car.speed > 200)) {
+        const wh = car.rearWheels(this._wheels);
+        this.particles.emitSurface('ice', wh.lx, wh.ly, car.vx, car.vy, h);
+      }
+    }
+    if (surf && surf.t === 'boost' && this._lastSurfT !== 'boost') this.audio.boost();
+    this._lastSurfT = surf ? surf.t : '';
 
     // rear-light trail sample (every other step ≈ 60 Hz is plenty)
     if ((this._trailTick = !this._trailTick)) {
@@ -885,8 +898,14 @@ class Game {
     // neon grid floor
     this._drawGrid(ctx, left, top, right, bottom, zoom);
 
+    // roadside scenery sits under the track ribbon
+    track.drawScenery(ctx, left, top, right, bottom);
+
     // track: baked base + live crisp neon edge cores (visible chunks only)
     track.drawBase(ctx, left, top, right, bottom);
+
+    // animated boost pads on the asphalt
+    track.drawBoosts(ctx, this._t, left, top, right, bottom);
 
     // rubber + fresh-mark glow sit on the asphalt, under the edge lines
     const fxDt = rdt * this.timeScale;

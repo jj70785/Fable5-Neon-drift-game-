@@ -41,10 +41,13 @@ export class Particles {
     this.rot = new Float32Array(N);
     this.vr = new Float32Array(N);
     this.color = new Uint8Array(N);
+    this.tint = new Uint8Array(N);     // 0 = tyre smoke, 1 = mud spray
 
     this.smokeSprite = makeSmokeSprite(64, 'rgba(190,205,235,0.50)', 'rgba(140,160,205,0.22)');
+    this.mudSprite = makeSmokeSprite(64, 'rgba(120,92,50,0.62)', 'rgba(80,60,32,0.30)');
     this.confettiStyles = CONFETTI_COLORS;
-    this._emitAcc = 0; // fractional emission accumulator
+    this._emitAcc = 0;  // fractional emission accumulator (tyre smoke)
+    this._surfAcc = 0;  // fractional emission accumulator (surface fx)
   }
 
   clear() { this.live = 0; }
@@ -64,6 +67,7 @@ export class Particles {
       this.size[i] = this.size[last];
       this.rot[i] = this.rot[last]; this.vr[i] = this.vr[last];
       this.color[i] = this.color[last];
+      this.tint[i] = this.tint[last];
     }
   }
 
@@ -75,6 +79,7 @@ export class Particles {
       const i = this._spawn();
       if (i < 0) return;
       this.type[i] = TYPE_SMOKE;
+      this.tint[i] = 0;
       this.x[i] = x + (Math.random() - 0.5) * 6;
       this.y[i] = y + (Math.random() - 0.5) * 6;
       this.vx[i] = baseVx * 0.25 + (Math.random() - 0.5) * 60;
@@ -83,6 +88,35 @@ export class Particles {
       this.size[i] = 9 + Math.random() * 8;
       this.rot[i] = Math.random() * 6.28;
       this.vr[i] = (Math.random() - 0.5) * 2;
+    }
+  }
+
+  // surface effects: mud spray (brown puffs) or ice frost (cyan glints)
+  emitSurface(type, x, y, baseVx, baseVy, dt) {
+    this._surfAcc += CONFIG.SURFACE.FX_RATE * dt;
+    while (this._surfAcc >= 1) {
+      this._surfAcc -= 1;
+      const i = this._spawn();
+      if (i < 0) return;
+      if (type === 'mud') {
+        this.type[i] = TYPE_SMOKE; this.tint[i] = 1;
+        this.x[i] = x + (Math.random() - 0.5) * 8;
+        this.y[i] = y + (Math.random() - 0.5) * 8;
+        this.vx[i] = -baseVx * 0.18 + (Math.random() - 0.5) * 130;
+        this.vy[i] = -baseVy * 0.18 + (Math.random() - 0.5) * 130;
+        this.maxLife[i] = this.life[i] = 0.5 * (0.7 + Math.random() * 0.6);
+        this.size[i] = 4 + Math.random() * 5;
+        this.rot[i] = 0; this.vr[i] = 0;
+      } else { // ice frost
+        this.type[i] = TYPE_SPARK; this.tint[i] = 0;
+        this.x[i] = x; this.y[i] = y;
+        const a = Math.random() * 6.28, sp = 60 + Math.random() * 170;
+        this.vx[i] = Math.cos(a) * sp + baseVx * 0.1;
+        this.vy[i] = Math.sin(a) * sp + baseVy * 0.1;
+        this.maxLife[i] = this.life[i] = 0.4 * (0.6 + Math.random() * 0.7);
+        this.size[i] = 1.2 + Math.random() * 1.6;
+        this.color[i] = 2; // cyan frost
+      }
     }
   }
 
@@ -149,12 +183,12 @@ export class Particles {
 
   // smoke renders under the car; sparks/confetti above it
   drawUnder(ctx) {
-    const sprite = this.smokeSprite;
     for (let i = 0; i < this.live; i++) {
       if (this.type[i] !== TYPE_SMOKE) continue;
       const k = this.life[i] / this.maxLife[i];
       ctx.globalAlpha = k * 0.55;
       const s = this.size[i] * 2;
+      const sprite = this.tint[i] === 1 ? this.mudSprite : this.smokeSprite;
       ctx.drawImage(sprite, this.x[i] - s / 2, this.y[i] - s / 2, s, s);
     }
     ctx.globalAlpha = 1;
@@ -169,7 +203,9 @@ export class Particles {
       const k = this.life[i] / this.maxLife[i];
       ctx.strokeStyle = this.color[i] === 0
         ? `rgba(255,225,77,${(k).toFixed(3)})`
-        : `rgba(255,255,255,${(k).toFixed(3)})`;
+        : this.color[i] === 2
+          ? `rgba(150,235,255,${(k).toFixed(3)})`
+          : `rgba(255,255,255,${(k).toFixed(3)})`;
       ctx.lineWidth = this.size[i];
       ctx.beginPath();
       ctx.moveTo(this.x[i], this.y[i]);

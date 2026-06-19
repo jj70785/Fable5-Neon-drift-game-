@@ -11,7 +11,7 @@ export const CONFIG = {
   MAX_FRAME_MS: 50,         // clamp frame delta (tab-switch protection)
   MAX_STEPS_PER_FRAME: 8,   // hard cap on physics catch-up steps
   DPR_CAP: 2,               // devicePixelRatio cap (perf on 3x phones)
-  SAVE_VERSION: 3,          // bump when physics tuning invalidates old records
+  SAVE_VERSION: 4,          // bump when physics tuning invalidates old records
 
   // --- car physics (arcade drift model) -------------------------------------
   CAR: {
@@ -98,7 +98,19 @@ export const CONFIG = {
     FORFEIT_GRACE: 0.3,     // s after a forfeit during which contact can't forfeit again
   },
 
-  // --- particles ---------------------------------------------------------------
+  // --- surfaces (ice / mud / boost patches) ---------------------------------
+  SURFACE: {
+    ICE_GRIP: 0.22,         // grip multiplier on ice (slides everywhere)
+    ICE_DRIFT_ENTER: 0.13,  // rad: ice trips a drift at a much lower slip angle
+    ICE_STEER: 0.85,        // steering authority scale on ice (vague)
+    MUD_GRIP: 1.5,          // grip multiplier in mud (no sliding — digs in)
+    MUD_DRAG: 5.2,          // extra linear drag (1/s) in mud — scrubs speed hard
+    MUD_THROTTLE: 0.55,     // throttle authority scale in mud (bogs down)
+    MUD_MAX_SPEED: 300,     // px/s soft cap while in mud
+    BOOST_FORCE: 1700,      // px/s^2 forward shove on a boost pad
+    BOOST_MAX: 760,         // px/s speed a boost pad will push you up to
+    FX_RATE: 60,            // surface particles/s while driving on a patch
+  },
   FX: {
     POOL_SIZE: 1500,        // total pooled particles
     SMOKE_RATE: 95,         // particles/s per wheel at full slip

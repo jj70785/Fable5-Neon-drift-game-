@@ -16,12 +16,16 @@ const HASH_CELL = 128;
 // Handcrafted control points (closed loops). Layout notes:
 //  - min corner radius must stay well above width/2 so offset walls don't fold
 //  - all tracks run the same way around for consistent muscle memory
+// Surface patches are circles placed on the road: {t, x, y, r}
+//   ice   — grip falls off a cliff; you slide everywhere
+//   mud   — heavy drag, kills drifts, scrubs speed (tempting corner-cut trap)
+//   boost — green chevron pad that flings you forward
 export const TRACK_DEFS = [
   {
     id: 'sunset',
     name: 'SUNSET LOOP',
     diff: 'FLOWING',
-    width: 150,
+    width: 168,
     desc: 'Wide and fast. Learn the car here.',
     // medal targets: total = LAPS * length / (fraction * TOP_SPEED), see DESIGN.md
     medalSpeed: { gold: 0.62, silver: 0.54, bronze: 0.44 },
@@ -32,12 +36,17 @@ export const TRACK_DEFS = [
       [380, -990], [-260, -1000], [-860, -910], [-1180, -780], [-1450, -540],
       [-1560, -240], [-1530, 80], [-1380, 380], [-1330, 660], [-1260, 870],
     ],
+    surfaces: [
+      { t: 'boost', x: 300, y: 1010, r: 66 },
+      { t: 'ice', x: -300, y: -995, r: 124 },
+      { t: 'boost', x: -1500, y: 120, r: 64 },
+    ],
   },
   {
     id: 'royale',
     name: 'CIRCUIT ROYALE',
     diff: 'TECHNICAL',
-    width: 118,
+    width: 132,
     desc: 'Chicanes and a hairpin. Precision pays.',
     medalSpeed: { gold: 0.54, silver: 0.47, bronze: 0.385 },
     colors: { outer: '#00f0ff', inner: '#ffe14d' },
@@ -49,12 +58,17 @@ export const TRACK_DEFS = [
       [-1000, -180], [-900, 100], [-1050, 380], [-1300, 520], [-1430, 700],
       [-1410, 870],
     ],
+    surfaces: [
+      { t: 'mud', x: 700, y: -300, r: 92 },
+      { t: 'boost', x: 0, y: 950, r: 60 },
+      { t: 'ice', x: -1050, y: 380, r: 108 },
+    ],
   },
   {
     id: 'vice',
     name: 'VICE SPIRAL',
     diff: 'DRIFT HEAVEN',
-    width: 132,
+    width: 150,
     desc: 'High-speed sweepers into tight hairpins.',
     medalSpeed: { gold: 0.57, silver: 0.495, bronze: 0.405 },
     colors: { outer: '#ff2d95', inner: '#00f0ff' },
@@ -65,6 +79,55 @@ export const TRACK_DEFS = [
       [-1350, -360], [-800, -330], [-100, -340], [600, -330], [1100, -290],
       [1480, -130], [1560, 130], [1350, 320], [900, 360], [200, 350],
       [-500, 360], [-1100, 400], [-1480, 520], [-1580, 800], [-1380, 1020],
+    ],
+    surfaces: [
+      { t: 'ice', x: 500, y: 1180, r: 150 },
+      { t: 'ice', x: 0, y: -1290, r: 160 },
+      { t: 'boost', x: 2150, y: 0, r: 74 },
+      { t: 'mud', x: 200, y: 350, r: 112 },
+    ],
+  },
+  {
+    id: 'aurora',
+    name: 'AURORA BAY',
+    diff: 'COASTAL',
+    width: 170,
+    desc: 'Long neon sweepers by the water. Pure flow.',
+    medalSpeed: { gold: 0.6, silver: 0.52, bronze: 0.42 },
+    colors: { outer: '#22e6c8', inner: '#ff2d95' },
+    points: [
+      [-1500, 1100], [-700, 1200], [200, 1220], [1000, 1150], [1500, 950],
+      [1750, 600], [1820, 150], [1750, -350], [1500, -750], [1050, -1000],
+      [450, -1120], [-250, -1130], [-950, -1050], [-1450, -820], [-1700, -450],
+      [-1780, 0], [-1700, 450], [-1550, 800],
+    ],
+    surfaces: [
+      { t: 'boost', x: 200, y: 1220, r: 74 },
+      { t: 'boost', x: 1750, y: -350, r: 72 },
+      { t: 'ice', x: -1780, y: 0, r: 150 },
+    ],
+  },
+  {
+    id: 'toxic',
+    name: 'TOXIC MILE',
+    diff: 'HAZARD',
+    width: 142,
+    desc: 'Ice, mud and boost everywhere. Pick your line.',
+    medalSpeed: { gold: 0.5, silver: 0.43, bronze: 0.36 },
+    colors: { outer: '#ff2d95', inner: '#ffe14d' },
+    points: [
+      [-1350, 850], [-650, 920], [100, 920], [750, 880], [1250, 760],
+      [1500, 480], [1480, 150], [1250, -50], [950, -60], [780, -260],
+      [980, -520], [1320, -640], [1480, -920], [1250, -1150], [800, -1200],
+      [150, -1170], [-500, -1100], [-1050, -950], [-1400, -650], [-1500, -280],
+      [-1400, 60], [-1180, 300], [-1300, 600], [-1430, 820],
+    ],
+    surfaces: [
+      { t: 'mud', x: 820, y: -300, r: 86 },
+      { t: 'ice', x: 150, y: -1170, r: 132 },
+      { t: 'boost', x: -1500, y: -280, r: 66 },
+      { t: 'ice', x: -1200, y: 250, r: 96 },
+      { t: 'boost', x: 100, y: 920, r: 64 },
     ],
   },
 ];
@@ -115,8 +178,33 @@ export class Track {
     this.width = def.width;
     this._build();
     this._buildPaths();
+    this._buildSurfaces();
     this._buildMinimap();
     this._tmp = { x: 0, y: 0 };
+  }
+
+  // ---- surface patches (ice / mud / boost) ----
+  _buildSurfaces() {
+    this.surfaces = (this.def.surfaces || []).map((s) => {
+      // nearest centerline tangent gives boost its shove direction
+      let best = 0, bd = 1e18;
+      for (let i = 0; i < this.n; i++) {
+        const dx = this.cx[i] - s.x, dy = this.cy[i] - s.y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = i; }
+      }
+      return { t: s.t, x: s.x, y: s.y, r: s.r, r2: s.r * s.r, tx: this.tx[best], ty: this.ty[best] };
+    });
+  }
+
+  // which surface is the point on? null = plain asphalt. first match wins.
+  surfaceAt(x, y) {
+    const S = this.surfaces;
+    for (let i = 0; i < S.length; i++) {
+      const dx = x - S[i].x, dy = y - S[i].y;
+      if (dx * dx + dy * dy <= S[i].r2) return S[i];
+    }
+    return null;
   }
 
   // ---- geometry ----
@@ -343,6 +431,7 @@ export class Track {
   // Only the two crisp neon core lines are stroked live each frame.
   bake() {
     if (this.baked) return;
+    this._buildScenery();
     const s = 0.55;
     const b = this.bounds;
     const W = Math.ceil((b.maxX - b.minX) * s), H = Math.ceil((b.maxY - b.minY) * s);
@@ -365,6 +454,7 @@ export class Track {
     g.stroke(this.centerPath);
     g.setLineDash([]);
 
+    this._bakeSurfaces(g);  // ice + mud are static; boost pads animate live
     this._bakeKerbs(g);
     this._bakeChevrons(g);
     this._bakeGateNotches(g);
@@ -389,6 +479,88 @@ export class Track {
     g.restore();
 
     this.baked = { canvas: c, scale: s };
+  }
+
+  // ice & mud patches baked onto the asphalt (radial gradients fade at the
+  // rim so a patch spilling over the neon edge still looks soft, not clipped)
+  _bakeSurfaces(g) {
+    let seed = 24680 + this.index * 7919;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (const s of this.surfaces) {
+      if (s.t === 'boost') continue;
+      if (s.t === 'ice') {
+        const grad = g.createRadialGradient(s.x, s.y, s.r * 0.1, s.x, s.y, s.r);
+        grad.addColorStop(0, 'rgba(150,232,255,0.40)');
+        grad.addColorStop(0.55, 'rgba(120,205,248,0.24)');
+        grad.addColorStop(1, 'rgba(120,205,248,0)');
+        g.fillStyle = grad;
+        g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
+        // glossy cracks
+        g.strokeStyle = 'rgba(232,250,255,0.5)';
+        g.lineWidth = 1.6;
+        for (let k = 0; k < 4; k++) {
+          const a = rnd() * Math.PI * 2, len = s.r * (0.4 + rnd() * 0.5);
+          g.beginPath();
+          g.moveTo(s.x + Math.cos(a) * s.r * 0.15, s.y + Math.sin(a) * s.r * 0.15);
+          g.lineTo(s.x + Math.cos(a) * len, s.y + Math.sin(a) * len);
+          g.stroke();
+        }
+      } else if (s.t === 'mud') {
+        const grad = g.createRadialGradient(s.x, s.y, s.r * 0.1, s.x, s.y, s.r);
+        grad.addColorStop(0, 'rgba(74,58,32,0.82)');
+        grad.addColorStop(0.6, 'rgba(58,46,26,0.62)');
+        grad.addColorStop(1, 'rgba(58,46,26,0)');
+        g.fillStyle = grad;
+        g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
+        // speckles / ruts
+        g.fillStyle = 'rgba(30,24,14,0.6)';
+        for (let k = 0; k < 14; k++) {
+          const a = rnd() * Math.PI * 2, rr = rnd() * s.r * 0.85;
+          g.beginPath();
+          g.arc(s.x + Math.cos(a) * rr, s.y + Math.sin(a) * rr, 1.5 + rnd() * 3, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    }
+  }
+
+  // animated boost pads — chevrons streaming in the track-forward direction.
+  // drawn live each frame (world-space ctx). `t` is the global anim clock.
+  drawBoosts(ctx, t, left, top, right, bottom) {
+    for (const s of this.surfaces) {
+      if (s.t !== 'boost') continue;
+      if (s.x + s.r < left || s.x - s.r > right || s.y + s.r < top || s.y - s.r > bottom) continue;
+      const ang = Math.atan2(s.ty, s.tx);
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(ang);
+      // glow floor
+      const grad = ctx.createRadialGradient(0, 0, s.r * 0.1, 0, 0, s.r);
+      grad.addColorStop(0, 'rgba(80,255,170,0.34)');
+      grad.addColorStop(0.7, 'rgba(60,255,150,0.14)');
+      grad.addColorStop(1, 'rgba(60,255,150,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(0, 0, s.r, 0, Math.PI * 2); ctx.fill();
+      // streaming chevrons
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, s.r * 0.96, 0, Math.PI * 2); ctx.clip();
+      const gap = s.r * 0.55;
+      const scroll = (t * 260) % gap;
+      ctx.lineWidth = 5;
+      ctx.lineJoin = 'miter';
+      for (let i = -2; i <= 2; i++) {
+        const cxp = -s.r + i * gap + scroll;
+        const k = 1 - Math.abs(cxp) / s.r;
+        ctx.strokeStyle = `rgba(150,255,190,${(0.25 + 0.55 * Math.max(0, k)).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(cxp - s.r * 0.18, -s.r * 0.5);
+        ctx.lineTo(cxp + s.r * 0.18, 0);
+        ctx.lineTo(cxp - s.r * 0.18, s.r * 0.5);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.restore();
+    }
   }
 
   // red/white kerb dashes where the corner radius tightens — classic circuit
@@ -466,6 +638,102 @@ export class Track {
     const x1 = Math.min(right, b.maxX), y1 = Math.min(bottom, b.maxY);
     if (x1 <= x0 || y1 <= y0) return;
     ctx.drawImage(k.canvas,
+      (x0 - b.minX) * s, (y0 - b.minY) * s, (x1 - x0) * s, (y1 - y0) * s,
+      x0, y0, x1 - x0, y1 - y0);
+  }
+
+  // ---- roadside scenery (procedural, baked once on race start) ----
+  // Top-down palms, neon billboards, light poles and barrier studs placed
+  // beside the ribbon so the world reads as a place, not a flat baseplate.
+  _buildScenery() {
+    if (this.scenery) return;
+    const b = this.bounds, pad = 360;
+    const sb = { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
+    const s = 0.5;
+    const W = Math.ceil((sb.maxX - sb.minX) * s), H = Math.ceil((sb.maxY - sb.minY) * s);
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.setTransform(s, 0, 0, s, -sb.minX * s, -sb.minY * s);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    let seed = 13579 + this.index * 6271;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const hw = this.width / 2;
+
+    // neon barrier studs hugging the outer wall
+    for (let i = 0; i < this.n; i += 9) {
+      const nx = -this.ty[i], ny = this.tx[i];
+      const px = this.cx[i] + nx * (hw + 9), py = this.cy[i] + ny * (hw + 9);
+      g.fillStyle = (i % 27 === 0) ? 'rgba(255,45,149,0.7)' : 'rgba(0,240,255,0.55)';
+      g.beginPath(); g.arc(px, py, 3, 0, Math.PI * 2); g.fill();
+    }
+
+    // scattered props beyond the walls (mostly outfield)
+    const count = 24 + Math.floor(this.length / 750);
+    for (let p = 0; p < count; p++) {
+      const i = Math.floor(rnd() * this.n);
+      const side = rnd() < 0.62 ? 1 : -1;
+      const nx = -this.ty[i] * side, ny = this.tx[i] * side;
+      const dist = hw + 78 + rnd() * 250;
+      const px = this.cx[i] + nx * dist, py = this.cy[i] + ny * dist;
+      const kind = rnd();
+      if (kind < 0.5) this._drawPalm(g, px, py, 14 + rnd() * 12, rnd);
+      else if (kind < 0.8) this._drawPole(g, px, py, rnd);
+      else this._drawBillboard(g, px, py, rnd);
+    }
+    this.scenery = { canvas: c, scale: s, bounds: sb };
+  }
+
+  _drawPalm(g, x, y, r, rnd) {
+    const gl = g.createRadialGradient(x, y, 1, x, y, r * 1.7);
+    gl.addColorStop(0, 'rgba(34,230,150,0.30)');
+    gl.addColorStop(1, 'rgba(34,230,150,0)');
+    g.fillStyle = gl; g.beginPath(); g.arc(x, y, r * 1.7, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(46,224,156,0.85)'; g.lineWidth = 2.4;
+    const n = 6, base = rnd() * Math.PI * 2;
+    for (let k = 0; k < n; k++) {
+      const a = base + (k / n) * Math.PI * 2;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.quadraticCurveTo(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55,
+        x + Math.cos(a) * r, y + Math.sin(a) * r);
+      g.stroke();
+    }
+    g.fillStyle = 'rgba(16,36,36,0.92)';
+    g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill();
+  }
+
+  _drawPole(g, x, y, rnd) {
+    const col = rnd() < 0.5 ? '0,240,255' : '255,45,149';
+    const gl = g.createRadialGradient(x, y, 1, x, y, 22);
+    gl.addColorStop(0, `rgba(${col},0.5)`);
+    gl.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gl; g.beginPath(); g.arc(x, y, 22, 0, Math.PI * 2); g.fill();
+    g.fillStyle = `rgba(${col},0.95)`;
+    g.beginPath(); g.arc(x, y, 3.2, 0, Math.PI * 2); g.fill();
+  }
+
+  _drawBillboard(g, x, y, rnd) {
+    const a = rnd() * Math.PI * 2, w = 34 + rnd() * 24, h = 17 + rnd() * 8;
+    const cols = ['#00f0ff', '#ff2d95', '#ffe14d'];
+    const col = cols[Math.floor(rnd() * 3)];
+    g.save();
+    g.translate(x, y); g.rotate(a);
+    g.fillStyle = 'rgba(8,12,30,0.9)'; g.fillRect(-w / 2, -h / 2, w, h);
+    g.globalAlpha = 0.42; g.fillStyle = col; g.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8);
+    g.globalAlpha = 1;
+    g.strokeStyle = col; g.lineWidth = 2.5; g.strokeRect(-w / 2, -h / 2, w, h);
+    g.restore();
+  }
+
+  // blit the visible part of the scenery layer (drawn under the track)
+  drawScenery(ctx, left, top, right, bottom) {
+    const sc = this.scenery; if (!sc) return;
+    const b = sc.bounds, s = sc.scale;
+    const x0 = Math.max(left, b.minX), y0 = Math.max(top, b.minY);
+    const x1 = Math.min(right, b.maxX), y1 = Math.min(bottom, b.maxY);
+    if (x1 <= x0 || y1 <= y0) return;
+    ctx.drawImage(sc.canvas,
       (x0 - b.minX) * s, (y0 - b.minY) * s, (x1 - x0) * s, (y1 - y0) * s,
       x0, y0, x1 - x0, y1 - y0);
   }

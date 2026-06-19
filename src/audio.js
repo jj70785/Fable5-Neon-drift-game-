@@ -264,6 +264,26 @@ export class AudioEngine {
     });
   }
 
+  // boost pad: an upward filtered-noise whoosh
+  boost() {
+    if (!this.ready) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this._noiseBuf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(500, t);
+    bp.frequency.exponentialRampToValueAtTime(3600, t + 0.32);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.5 * A.UI, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+    src.connect(bp); bp.connect(g); g.connect(this.sfxBus);
+    src.start(t, Math.random() * 0.5); src.stop(t + 0.45);
+    this._blip(N(7), 0.22, 'triangle', 0.12 * A.UI, 0.02);
+    this._blip(N(14), 0.26, 'triangle', 0.1 * A.UI, 0.08);
+  }
+
   // ---- generative music -----------------------------------------------------
   startMusic() {
     if (!this.ready || this._musicPlaying) return;

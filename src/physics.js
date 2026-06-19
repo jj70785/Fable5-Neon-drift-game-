@@ -20,6 +20,7 @@ import { CONFIG } from './config.js';
 
 const C = CONFIG.CAR;
 const W = CONFIG.WALL;
+const SUR = CONFIG.SURFACE;
 const TAU = Math.PI * 2;
 
 export class Car {
@@ -53,9 +54,16 @@ export class Car {
     this._brakeLatch = false;
   }
 
-  step(dt, steer, throttle, brake, handbrake) {
+  step(dt, steer, throttle, brake, handbrake, surf) {
     this.prevX = this.x; this.prevY = this.y; this.prevHeading = this.heading;
     this.throttle = throttle; this.handbrake = handbrake; this.steer = steer;
+
+    // ---- surface modifiers (ice / mud / boost) ----
+    const surfT = surf ? surf.t : '';
+    const onIce = surfT === 'ice';
+    const onMud = surfT === 'mud';
+    this.surface = surfT;
+    if (onMud) throttle *= SUR.MUD_THROTTLE;   // engine bogs down in mud
 
     const cos = Math.cos(this.heading), sin = Math.sin(this.heading);
     // decompose: forward = (cos,sin), left = (-sin,cos)
@@ -69,9 +77,12 @@ export class Car {
 
     // ---- drift state machine ----
     const absSlip = Math.abs(slip);
-    if (!this.drifting) {
+    const enterSlip = onIce ? SUR.ICE_DRIFT_ENTER : C.DRIFT_ENTER_SLIP;
+    if (onMud) {
+      this.drifting = false;     // mud digs the tyres in — no sliding here
+    } else if (!this.drifting) {
       const viaBrake = handbrake && vF > C.DRIFT_MIN_SPEED * 0.55;
-      const viaSlip = absSlip > C.DRIFT_ENTER_SLIP && vF > C.DRIFT_MIN_SPEED;
+      const viaSlip = absSlip > enterSlip && vF > C.DRIFT_MIN_SPEED;
       if (viaBrake || viaSlip) {
         this.drifting = true;
         this._driftExitT = 0;
@@ -115,6 +126,7 @@ export class Car {
     const resistScale = coasting ? C.COAST_DRAG_SCALE : 1;
     aF -= vF * Math.abs(vF) * C.DRAG_K * resistScale;   // quadratic drag
     aF -= vF * C.ROLL_LIN * resistScale;                // linear rolling resistance
+    if (onMud) aF -= vF * SUR.MUD_DRAG;                 // mud scrubs speed hard
     vF += aF * dt;
 
     // braking through zero while latched parks the car instead of reversing
@@ -124,9 +136,12 @@ export class Car {
     if (Math.abs(vF) <= roll && throttle === 0 && brake === 0) vF = 0;
     else if (vF !== 0) vF -= Math.sign(vF) * roll;
     if (vF < -C.MAX_REVERSE) vF = -C.MAX_REVERSE;
+    if (onMud && vF > SUR.MUD_MAX_SPEED) vF = SUR.MUD_MAX_SPEED; // soft cap in mud
 
     // ---- lateral grip ----
     let grip = this.drifting ? C.GRIP_FULL * C.GRIP_DRIFT_FRAC : C.GRIP_FULL;
+    if (onIce) grip *= SUR.ICE_GRIP;                    // glass — slide everywhere
+    else if (onMud) grip *= SUR.MUD_GRIP;               // digs in — no slide
     // beyond ~45° the tires dig in harder: caps sustainable slip, kills spins
     if (absSlip > C.MAX_SLIP_SOFT) grip *= 1 + (absSlip - C.MAX_SLIP_SOFT) * 2.4;
     vL *= Math.exp(-grip * dt);
@@ -135,6 +150,17 @@ export class Car {
     // with the car — that coupling is exactly what grip simulates)
     this.vx = vF * cos - vL * sin;
     this.vy = vF * sin + vL * cos;
+
+    // ---- boost pad: shove along the track-forward direction, up to a cap ----
+    if (surfT === 'boost') {
+      const along = this.vx * surf.tx + this.vy * surf.ty;
+      if (along < SUR.BOOST_MAX) {
+        const add = Math.min(SUR.BOOST_FORCE * dt, SUR.BOOST_MAX - along);
+        this.vx += surf.tx * add; this.vy += surf.ty * add;
+        vF = this.vx * cos + this.vy * sin;   // refresh so steering/integrate see it
+        vL = -this.vx * sin + this.vy * cos;
+      }
+    }
     this.vF = vF; this.vL = vL;
     this.speed = Math.hypot(this.vx, this.vy);
 
@@ -144,6 +170,7 @@ export class Car {
     const hi = Math.min(1, absF / C.TOP_SPEED);
     const damp = 1 - C.HIGH_SPEED_DAMP * hi * hi;                // calmer at top speed
     let yawAuth = C.TURN_RATE * speedFactor * damp;
+    if (onIce) yawAuth *= SUR.ICE_STEER;                         // vague, washy steering
     if (this.drifting) {
       yawAuth *= C.DRIFT_YAW_BOOST;                              // counter-steer authority
       if (handbrake && absSlip < 0.35) yawAuth *= 1 + C.HANDBRAKE_KICK; // snappy initiation
