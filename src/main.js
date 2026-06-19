@@ -393,7 +393,7 @@ class Game {
 
     this.race = {
       phase: 'countdown',
-      cd: CONFIG.RACE.COUNTDOWN + 0.4,
+      cd: CONFIG.RACE.COUNTDOWN,   // counts a clean 3 - 2 - 1 - GO
       time: 0,
       lap: 1,
       expected: 1,
@@ -477,7 +477,8 @@ class Game {
       if (i === 0) { car = this.car; name = 'YOU'; colorIdx = -1; }
       else {
         car = new Car();
-        ai = new AIDriver(t, 0.88 + (i - 1) * 0.055, ((i % 2) ? 1 : -1) * (14 + (i - 1) * 8));
+        // skill tuned up so rivals floor it on straights instead of cruising
+        ai = new AIDriver(t, 0.97 + (i - 1) * 0.05, ((i % 2) ? 1 : -1) * (14 + (i - 1) * 8));
         name = RIVALS[i - 1].name; colorIdx = i - 1;
       }
       car.reset(px, py, sp.heading);
@@ -540,12 +541,13 @@ class Game {
 
     this._computePlaces();
 
-    // light rubber-banding: rivals ease off when ahead, push when behind
+    // light rubber-banding: rivals barely ease off when ahead (so they stay
+    // a real threat), and push harder when behind to keep the race close
     const pp = this.playerRacer.progress, n = t.n;
     for (const R of this.racers) {
       if (!R.ai) continue;
       const gapLaps = (R.progress - pp) / n;
-      R.ai.speedScale = clamp(1 - gapLaps * 0.42, 0.9, 1.14);
+      R.ai.speedScale = clamp(1 - gapLaps * 0.3, 0.97, 1.15);
     }
 
     const me = this.playerRacer;
@@ -874,7 +876,8 @@ class Game {
     if (!race) return;
     if (race.phase === 'countdown') {
       race.cd -= rdt;
-      const n = Math.ceil(race.cd);
+      let n = Math.ceil(race.cd);
+      if (n > CONFIG.RACE.COUNTDOWN) n = CONFIG.RACE.COUNTDOWN; // never flash an extra number
       if (race.cd <= 0) {
         race.phase = 'running';
         this.ui.setCountdown('GO!');
@@ -1122,10 +1125,7 @@ class Game {
     // neon grid floor
     this._drawGrid(ctx, left, top, right, bottom, zoom);
 
-    // roadside scenery sits under the track ribbon
-    track.drawScenery(ctx, left, top, right, bottom);
-
-    // track: baked base + live crisp neon edge cores (visible chunks only)
+    // track base (now includes the roadside scenery, baked in — one blit)
     track.drawBase(ctx, left, top, right, bottom);
 
     // animated boost pads on the asphalt

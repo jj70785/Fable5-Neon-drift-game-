@@ -431,9 +431,12 @@ export class Track {
   // Only the two crisp neon core lines are stroked live each frame.
   bake() {
     if (this.baked) return;
-    this._buildScenery();
     const s = 0.55;
-    const b = this.bounds;
+    // expand the baked canvas to also hold the roadside scenery, so the whole
+    // backdrop is ONE blit per frame instead of two (scenery used to cost a
+    // second full-screen drawImage — ~4 FPS under software rendering)
+    const bb = this.bounds, pad = 360;
+    const b = { minX: bb.minX - pad, minY: bb.minY - pad, maxX: bb.maxX + pad, maxY: bb.maxY + pad };
     const W = Math.ceil((b.maxX - b.minX) * s), H = Math.ceil((b.maxY - b.minY) * s);
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
@@ -441,6 +444,8 @@ export class Track {
     g.setTransform(s, 0, 0, s, -b.minX * s, -b.minY * s);
     g.lineJoin = 'round'; g.lineCap = 'round';
     const tc = this.renderColors;
+
+    this._drawScenery(g);   // props go down first, the road covers them
 
     g.strokeStyle = tc.halo; g.lineWidth = this.width + 86; g.stroke(this.centerPath);
     g.strokeStyle = tc.halo2; g.lineWidth = this.width + 30; g.stroke(this.centerPath);
@@ -478,7 +483,7 @@ export class Track {
     }
     g.restore();
 
-    this.baked = { canvas: c, scale: s };
+    this.baked = { canvas: c, scale: s, bounds: b };
   }
 
   // ice & mud patches baked onto the asphalt (radial gradients fade at the
@@ -631,9 +636,9 @@ export class Track {
     }
   }
 
-  // blit only the visible part of the baked base
+  // blit only the visible part of the baked base (road + scenery in one image)
   drawBase(ctx, left, top, right, bottom) {
-    const b = this.bounds, k = this.baked, s = k.scale;
+    const k = this.baked, b = k.bounds, s = k.scale;
     const x0 = Math.max(left, b.minX), y0 = Math.max(top, b.minY);
     const x1 = Math.min(right, b.maxX), y1 = Math.min(bottom, b.maxY);
     if (x1 <= x0 || y1 <= y0) return;
@@ -642,20 +647,10 @@ export class Track {
       x0, y0, x1 - x0, y1 - y0);
   }
 
-  // ---- roadside scenery (procedural, baked once on race start) ----
+  // ---- roadside scenery (procedural, drawn into the baked base canvas) ----
   // Top-down palms, neon billboards, light poles and barrier studs placed
   // beside the ribbon so the world reads as a place, not a flat baseplate.
-  _buildScenery() {
-    if (this.scenery) return;
-    const b = this.bounds, pad = 360;
-    const sb = { minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad };
-    const s = 0.5;
-    const W = Math.ceil((sb.maxX - sb.minX) * s), H = Math.ceil((sb.maxY - sb.minY) * s);
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    const g = c.getContext('2d');
-    g.setTransform(s, 0, 0, s, -sb.minX * s, -sb.minY * s);
-    g.lineCap = 'round'; g.lineJoin = 'round';
+  _drawScenery(g) {
     let seed = 13579 + this.index * 6271;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const hw = this.width / 2;
@@ -681,7 +676,6 @@ export class Track {
       else if (kind < 0.8) this._drawPole(g, px, py, rnd);
       else this._drawBillboard(g, px, py, rnd);
     }
-    this.scenery = { canvas: c, scale: s, bounds: sb };
   }
 
   _drawPalm(g, x, y, r, rnd) {
@@ -724,18 +718,6 @@ export class Track {
     g.globalAlpha = 1;
     g.strokeStyle = col; g.lineWidth = 2.5; g.strokeRect(-w / 2, -h / 2, w, h);
     g.restore();
-  }
-
-  // blit the visible part of the scenery layer (drawn under the track)
-  drawScenery(ctx, left, top, right, bottom) {
-    const sc = this.scenery; if (!sc) return;
-    const b = sc.bounds, s = sc.scale;
-    const x0 = Math.max(left, b.minX), y0 = Math.max(top, b.minY);
-    const x1 = Math.min(right, b.maxX), y1 = Math.min(bottom, b.maxY);
-    if (x1 <= x0 || y1 <= y0) return;
-    ctx.drawImage(sc.canvas,
-      (x0 - b.minX) * s, (y0 - b.minY) * s, (x1 - x0) * s, (y1 - y0) * s,
-      x0, y0, x1 - x0, y1 - y0);
   }
 
   // ---- minimap (pre-rendered outline; dots drawn live by the HUD) ----

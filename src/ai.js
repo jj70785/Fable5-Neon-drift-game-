@@ -74,11 +74,11 @@ export class AIDriver {
     // corner severity from the curvature a little ahead → target speed
     const curv = this._curvature((this.idx + 6) % n, 7);
     const corner = clamp((curv - 0.0006) * 540, 0, 1);
-    let target = CONFIG.CAR.TOP_SPEED * (1 - 0.6 * corner) * this.skill * this.speedScale;
-    if (target < 190) target = 190;
+    let target = CONFIG.CAR.TOP_SPEED * (1 - 0.55 * corner) * this.skill * this.speedScale;
+    if (target < 210) target = 210;
 
     if (car.speed > target + 35) { c.throttle = 0; c.brake = 1; }
-    else if (car.speed > target) { c.throttle = 0.2; c.brake = 0; }
+    else if (car.speed > target) { c.throttle = 0.55; c.brake = 0; } // hold speed, don't coast
     else { c.throttle = 1; c.brake = 0; }
 
     // flick the handbrake to rotate through the tightest corners at speed
