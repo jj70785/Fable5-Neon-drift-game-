@@ -42,6 +42,8 @@ const mid = await page.evaluate(() => {
 });
 check('rivals drive the racing line', mid.aiMaxIdx > 60, `aiMaxIdx=${mid.aiMaxIdx}`);
 check('rivals are actually moving', mid.aiSpeeds.every((s) => s > 120), `speeds=${mid.aiSpeeds}`);
+check('rivals top out faster than the player base (≥560 on a straight)',
+  Math.max(...mid.aiSpeeds) > 560, `maxAI=${Math.max(...mid.aiSpeeds)}`);
 check('positions are a clean 1..4', JSON.stringify(mid.places) === '[1,2,3,4]', `places=${mid.places}`);
 await page.screenshot({ path: 'test/artifacts/gp-race.png' });
 

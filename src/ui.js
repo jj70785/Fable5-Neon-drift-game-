@@ -21,7 +21,8 @@ export class UI {
       debug: $('debug-overlay'),
       touch: $('touch-controls'),
       btnLeft: $('btn-left'), btnRight: $('btn-right'), btnBrake: $('btn-brake'),
-      btnGas: $('btn-gas'),
+      btnGas: $('btn-gas'), btnNitro: $('btn-nitro'),
+      nitroBox: $('hud-nitro'), nitroFill: $('nitro-fill'),
       btnPause: $('btn-pause'), btnRespawn: $('btn-respawn'),
       popupLayer: $('popup-layer'),
       countdown: $('countdown'),
@@ -36,7 +37,7 @@ export class UI {
     };
 
     // HUD value caches (avoid DOM writes when nothing changed)
-    this._c = { speed: -1, lap: '', time: '', score: -1, pending: -1, mult: -1, timer: '', delta: '', pos: -1 };
+    this._c = { speed: -1, lap: '', time: '', score: -1, pending: -1, mult: -1, timer: '', delta: '', pos: -1, nitro: -1, nitroReady: null, nitroActive: null };
 
     // pooled floating popups
     this.popups = [];
@@ -146,6 +147,23 @@ export class UI {
   showPos(on) { this.el.posBox.classList.toggle('hidden', !on); }
   setPos(place) {
     if (place !== this._c.pos) { this._c.pos = place; this.el.pos.textContent = 'P' + place; }
+  }
+  showNitro(on) { this.el.nitroBox.classList.toggle('hidden', !on); }
+  setNitro(charge, active) {
+    const pct = Math.round(charge * 100);
+    if (pct !== this._c.nitro) {
+      this._c.nitro = pct;
+      this.el.nitroFill.style.width = pct + '%';
+    }
+    const ready = charge >= 0.999;
+    if (ready !== this._c.nitroReady) {
+      this._c.nitroReady = ready;
+      this.el.nitroBox.classList.toggle('full', ready);
+    }
+    if (active !== this._c.nitroActive) {
+      this._c.nitroActive = active;
+      this.el.nitroBox.classList.toggle('firing', active);
+    }
   }
 
   // ---- HUD setters (cached) ----

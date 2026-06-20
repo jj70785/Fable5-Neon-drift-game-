@@ -41,6 +41,7 @@ synthesized live with the Web Audio API.
 | `S` / `↓` | Brake to a stop · press again from standstill to reverse |
 | `A` `D` / `←` `→` | Steer |
 | `Space` | Handbrake — hold **with steering** to drift, **while straight** it's a hard brake |
+| `Shift` | Nitro — spend the bar for a speed burst (fills as you drift; GP + Time Trial) |
 | `R` | Respawn at the last checkpoint |
 | `Esc` / `P` | Pause |
 | `M` | Mute |
@@ -49,9 +50,20 @@ synthesized live with the Web Audio API.
 ### Phone / tablet
 The car cruises on its own at a comfortable pace. Hold **GAS** (yellow,
 right side) for full speed and release it to slow into corners. Steer with
-the **◀ ▶** buttons (bottom-left). Hold **DRIFT** while steering to slide —
-hold it while going straight and it's your brake. Everything is
-multi-touch safe; respawn ↺ and pause Ⅱ sit at the top.
+the **◀ ▶** buttons (bottom-left), tap **NOS** (cyan, above the steer pad)
+to burn nitro. Hold **DRIFT** while steering to slide — hold it while going
+straight and it's your brake. Everything is multi-touch safe; respawn ↺ and
+pause Ⅱ sit at the top.
+
+**Nitro:** drifting fills the nitro bar; spend it for a speed burst. In
+**Grand Prix** the rivals are faster than you on the straights, so you bank
+nitro through the corners and spend it to keep up — out-drive them, don't
+out-drag them.
+
+**Surfaces:** 🧊 **ice** (now big rectangular slabs) kicks your rear out and
+tries to spin you — catch it with counter-steer; 🟤 **mud** is mild if you
+keep it straight but grabs and scrubs you hard if you drift across it; ⚡
+**boost pads** fling you down the straights.
 
 ## Install it like an app (PWA)
 

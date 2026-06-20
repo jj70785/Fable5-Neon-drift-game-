@@ -12,11 +12,12 @@ export class Input {
     this.throttle = 0;
     this.brake = 0;
     this.handbrake = false;
+    this.nitro = false;
 
     this.keys = new Set();
     this.edges = new Set();      // action names pressed since last consume
     this.touchActive = false;    // becomes true on first touch interaction
-    this.touch = { left: false, right: false, brake: false, gas: false };
+    this.touch = { left: false, right: false, brake: false, gas: false, nitro: false };
     this._touchPointers = new Map(); // pointerId -> control name
     this.onFirstGesture = null;  // hook: create/resume AudioContext
     this._gestureFired = false;
@@ -94,6 +95,7 @@ export class Input {
     if (name === 'right') this.touch.right = down;
     if (name === 'brake') this.touch.brake = down;
     if (name === 'gas') this.touch.gas = down;
+    if (name === 'nitro') this.touch.nitro = down;
     this._recompute();
   }
 
@@ -109,6 +111,7 @@ export class Input {
     this.throttle = (k.has('ArrowUp') || k.has('KeyW')) ? 1 : 0;
     this.brake = (k.has('ArrowDown') || k.has('KeyS')) ? 1 : 0;
     this.handbrake = k.has('Space') || this.touch.brake;
+    this.nitro = k.has('ShiftLeft') || k.has('ShiftRight') || this.touch.nitro;
   }
 
   // throttle for the game to read each step.

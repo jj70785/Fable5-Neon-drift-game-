@@ -17,6 +17,7 @@ import { SkidMarks } from './skidmarks.js';
 import { AudioEngine } from './audio.js';
 import { GhostRecorder, GhostPlayer, saveGhost, loadGhost } from './ghost.js';
 import { AIDriver, RIVALS } from './ai.js';
+import { Nitro } from './nitro.js';
 
 const STATE = {
   TITLE: 'title',
@@ -233,6 +234,7 @@ class Game {
     this.track = null;
     this.car = new Car();
     this.drift = new DriftScore();
+    this.nitro = new Nitro();
     this.particles = new Particles();
     this.skids = new SkidMarks();
     this._wheels = { lx: 0, ly: 0, rx: 0, ry: 0 };
@@ -304,6 +306,7 @@ class Game {
     this.input.bindButton(this.ui.el.btnRight, 'right');
     this.input.bindButton(this.ui.el.btnBrake, 'brake');
     this.input.bindButton(this.ui.el.btnGas, 'gas');
+    this.input.bindButton(this.ui.el.btnNitro, 'nitro');
     this.input.bindButton(this.ui.el.btnPause, 'pause');
     this.input.bindButton(this.ui.el.btnRespawn, 'respawn');
 
@@ -332,6 +335,7 @@ class Game {
       get phase() { return self.race ? self.race.phase : null; },
       get car() { return self.car; },
       get drift() { return self.drift; },
+      get nitro() { return self.nitro; },
       get racers() { return self.racers; },
       get place() { return self.race ? self.race.place : null; },
       get fpsAvg() { return self.fpsAvg; },
@@ -384,6 +388,8 @@ class Game {
     const sp = this.track.startPose;
     this.car.reset(sp.x, sp.y, sp.heading);
     this.drift.reset();
+    this.nitro.reset();
+    this._nitroEnabled = (this.mode === 'gp' || this.mode === 'time');
     this.particles.clear();
     this.skids.begin(this.track);
     for (let i = 0; i < this._trailN; i++) this._trail[i * 4 + 2] = 99;
@@ -435,6 +441,7 @@ class Game {
     this.ui.showLap(this.mode !== 'drift');
     this.ui.showDriftHud(this.mode === 'drift');
     this.ui.showPos(this.mode === 'gp');
+    this.ui.showNitro(this._nitroEnabled);
     if (this.mode === 'drift') this.ui.setDriftTimer('2:00', false); else this.ui.hideDriftTimer();
     this.ui.setDelta(null);
     this.ui.clearPopups();
@@ -477,7 +484,10 @@ class Game {
       if (i === 0) { car = this.car; name = 'YOU'; colorIdx = -1; }
       else {
         car = new Car();
-        // skill tuned up so rivals floor it on straights instead of cruising
+        // rivals get a higher top speed (faster on straights — you out-corner
+        // them with drift speed + nitro). skill scales their cornering pace.
+        car.throttleForce = CONFIG.AI.THROTTLE_FORCE;
+        car.topSpeed = CONFIG.AI.TOP_SPEED;
         ai = new AIDriver(t, 0.97 + (i - 1) * 0.05, ((i % 2) ? 1 : -1) * (14 + (i - 1) * 8));
         name = RIVALS[i - 1].name; colorIdx = i - 1;
       }
@@ -924,10 +934,24 @@ class Game {
       }
     }
 
+    // nitro: drift fills the bar, holding the key/button spends it (GP + Time
+    // Trial only). returns the extra forward force to feed the physics step.
+    let boost = 0;
+    if (this._nitroEnabled) {
+      boost = this.nitro.step(h, car, !locked && inp.nitro);
+      if (this.nitro.justFired) this.audio.boost();
+    }
+
     const surf = this.track.surfaceAt(car.x, car.y);
-    car.step(h, steer, throttle, brake, hb, surf);
+    car.step(h, steer, throttle, brake, hb, surf, boost);
     const impact = this.track.collideCar(car, h);
     if (impact > 0) this._onWallHit(impact);
+
+    // nitro flame trail while boosting (cyan-white sparks off the tail)
+    if (this.nitro.active && car.speed > 120) {
+      const wh = car.rearWheels(this._wheels);
+      this.particles.emitSurface('ice', wh.lx, wh.ly, car.vx, car.vy, h);
+    }
 
     // surface effects + boost sting (edge-triggered)
     if (surf && car.speed > 80) {
@@ -1304,6 +1328,7 @@ class Game {
     const race = this.race, car = this.car, ui = this.ui;
     if (!race) return;
     ui.setSpeed(Math.round(car.speed * CONFIG.SPEED_DISPLAY));
+    if (this._nitroEnabled) ui.setNitro(this.nitro.charge, this.nitro.active);
     if (this.mode === 'time') {
       ui.setLap(`${Math.min(race.lap, CONFIG.RACE.LAPS)}/${CONFIG.RACE.LAPS}`);
       ui.setTime(fmtTime(race.phase === 'finished' ? race.total : race.time));

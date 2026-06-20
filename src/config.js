@@ -11,7 +11,7 @@ export const CONFIG = {
   MAX_FRAME_MS: 50,         // clamp frame delta (tab-switch protection)
   MAX_STEPS_PER_FRAME: 8,   // hard cap on physics catch-up steps
   DPR_CAP: 2,               // devicePixelRatio cap (perf on 3x phones)
-  SAVE_VERSION: 4,          // bump when physics tuning invalidates old records
+  SAVE_VERSION: 5,          // bump when physics tuning invalidates old records
 
   // --- car physics (arcade drift model) -------------------------------------
   CAR: {
@@ -105,18 +105,41 @@ export const CONFIG = {
 
   // --- surfaces (ice / mud / boost patches) ---------------------------------
   SURFACE: {
-    ICE_GRIP: 0.22,         // grip multiplier on ice (slides everywhere)
-    ICE_DRIFT_ENTER: 0.13,  // rad: ice trips a drift at a much lower slip angle
+    ICE_GRIP: 0.20,         // grip multiplier on ice (slides everywhere)
+    ICE_DRIFT_ENTER: 0.11,  // rad: ice trips a drift at a much lower slip angle
     ICE_STEER: 0.85,        // steering authority scale on ice (vague)
-    MUD_GRIP: 1.5,          // grip multiplier in mud (no sliding — digs in)
-    MUD_DRAG: 3.2,          // extra linear drag (1/s) in mud — scrubs speed hard
-                            //   (a patch costs you a chunk of speed, not a dead stop)
-    MUD_THROTTLE: 0.55,     // throttle authority scale in mud (bogs down)
-    MUD_MAX_SPEED: 300,     // px/s soft cap while in mud
+    ICE_SPIN: 3.2,          // 1/s: ice swings the rear out (heading += slip*this*dt).
+                            //   positive feedback → the back steps out and tries to
+                            //   spin you; counter-steer still catches it.
+    MUD_GRIP: 1.35,         // grip multiplier in mud (grabby, but you can still slide)
+    MUD_DRAG_GRIP: 0.5,     // light linear drag (1/s) when driving mud straight
+    MUD_DRAG_DRIFT: 3.2,    // heavy drag (1/s) when drifting through mud — the big
+                            //   scrub now only bites if you slide across it
+    MUD_DRIFT_SLIP: 0.2,    // rad slip above which mud is treated as "drifting"
+    MUD_THROTTLE: 0.75,     // throttle authority scale in mud (mild bog now)
+    MUD_MAX_SPEED: 300,     // px/s soft cap in mud — only applied while drifting
     BOOST_FORCE: 1700,      // px/s^2 forward shove on a boost pad
     BOOST_MAX: 760,         // px/s speed a boost pad will push you up to
     FX_RATE: 60,            // surface particles/s while driving on a patch
   },
+
+  // --- nitro (drift to fill, spend for a speed burst; GP + Time Trial) -------
+  NITRO: {
+    FILL_RATE: 0.34,        // bar/s filled at full drift intensity (~3s for a full bar)
+    DRAIN: 0.42,            // bar/s drained while boosting (~2.4s per full bar)
+    FORCE: 250,             // px/s^2 extra forward force while boosting
+    MAX: 620,               // px/s top speed nitro will push the player to
+    MIN_FIRE: 0.1,          // bar must hold at least this much to start a burst
+  },
+
+  // --- AI rivals -------------------------------------------------------------
+  AI: {
+    TOP_SPEED: 580,         // px/s rival top speed (~131 mph) — faster than the
+                            //   player's 540 so straights favour them; you win in
+                            //   the corners with drift speed + nitro
+    THROTTLE_FORCE: 1015,   // px/s^2 — solves the drag equilibrium for TOP_SPEED
+  },
+
   FX: {
     POOL_SIZE: 1500,        // total pooled particles
     SMOKE_RATE: 95,         // particles/s per wheel at full slip

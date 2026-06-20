@@ -47,6 +47,8 @@ const browser = await chromium.launch();
   await page.waitForFunction(() => window.__NEON.state === 'race');
   check('desktop: race starts from menu', true);
   await page.evaluate(() => window.__NEON.test.skipCountdown());
+  check('desktop: nitro HUD bar shows in a race',
+    await page.evaluate(() => !document.getElementById('hud-nitro').classList.contains('hidden')));
 
   // 10 s of throttle + occasional steering — car must cover > 500 px
   const start = await page.evaluate(() => ({ x: window.__NEON.car.x, y: window.__NEON.car.y }));
@@ -149,21 +151,27 @@ const browser = await chromium.launch();
     const right = vis(document.getElementById('btn-right'));
     const brake = vis(document.getElementById('btn-brake'));
     const gas = vis(document.getElementById('btn-gas'));
+    const nitro = vis(document.getElementById('btn-nitro'));
+    const nitroBar = vis(document.getElementById('hud-nitro'));
     const speed = vis(document.getElementById('hud-speed'));
     const lap = vis(document.getElementById('hud-left'));
     const mini = vis(document.getElementById('minimap'));
-    return { left, right, brake, gas, speed, lap, mini };
+    return { left, right, brake, gas, nitro, nitroBar, speed, lap, mini };
   });
-  check('mobile: touch buttons visible', !!(layout.left && layout.right && layout.brake && layout.gas));
-  check('mobile: buttons ≥ 64 px', layout.brake.width >= 64 && layout.left.width >= 64 && layout.gas.width >= 64,
-    `brake=${layout.brake.width}px gas=${layout.gas.width}px`);
+  check('mobile: touch buttons visible', !!(layout.left && layout.right && layout.brake && layout.gas && layout.nitro));
+  check('mobile: buttons ≥ 64 px',
+    layout.brake.width >= 64 && layout.left.width >= 64 && layout.gas.width >= 64 && layout.nitro.width >= 64,
+    `brake=${layout.brake.width} gas=${layout.gas.width} nitro=${layout.nitro.width}`);
+  check('mobile: nitro HUD bar visible', !!layout.nitroBar);
   const overlap = (a, b) => a && b &&
     a.x < b.x + b.width && b.x < a.x + a.width &&
     a.y < b.y + b.height && b.y < a.y + a.height;
   const anyOverlap = overlap(layout.brake, layout.speed) || overlap(layout.left, layout.speed) ||
     overlap(layout.brake, layout.mini) || overlap(layout.left, layout.lap) ||
     overlap(layout.gas, layout.speed) || overlap(layout.gas, layout.brake) ||
-    overlap(layout.gas, layout.mini);
+    overlap(layout.gas, layout.mini) || overlap(layout.nitro, layout.left) ||
+    overlap(layout.nitro, layout.lap) || overlap(layout.nitroBar, layout.gas) ||
+    overlap(layout.nitroBar, layout.brake) || overlap(layout.nitroBar, layout.speed);
   check('mobile: touch layout clear of HUD', !anyOverlap);
 
   // multi-touch: steer while holding handbrake
@@ -180,13 +188,14 @@ const browser = await chromium.launch();
     down(11, document.getElementById('btn-brake'));
     down(12, document.getElementById('btn-left'));
     down(13, document.getElementById('btn-gas'));
+    down(14, document.getElementById('btn-nitro'));
     setTimeout(() => {
-      resolve({ steer: game.input.steer, handbrake: game.input.handbrake, gas: game.input.touch.gas });
+      resolve({ steer: game.input.steer, handbrake: game.input.handbrake, gas: game.input.touch.gas, nitro: game.input.nitro });
     }, 80);
   }));
-  check('mobile: steer + handbrake + gas all held (multi-touch)',
-    steered.steer === -1 && steered.handbrake === true && steered.gas === true,
-    `steer=${steered.steer} hb=${steered.handbrake} gas=${steered.gas}`);
+  check('mobile: steer + handbrake + gas + nitro all held (multi-touch)',
+    steered.steer === -1 && steered.handbrake === true && steered.gas === true && steered.nitro === true,
+    `steer=${steered.steer} hb=${steered.handbrake} gas=${steered.gas} nitro=${steered.nitro}`);
 
   check('mobile: zero console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   await page.close();

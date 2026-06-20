@@ -234,6 +234,23 @@ corner steer you off the wall" stops being a viable line.
 Kept on a branch so it can be felt before deciding whether it belongs in the
 main game; merge to deploy.
 
+## v5 — nitro, faster rivals, surface reworks
+
+Goal: give drifting a job in the racing modes and make the hazards actually
+matter.
+
+| Change | Detail |
+| --- | --- |
+| **Nitro** (`src/nitro.js`) | Drifting fills a bar (same intensity as smoke/skids: slip × speed); `Shift` / the NOS button spends it for a forward boost force fed into `Car.step`. Active in GP + Time Trial only (Drift Attack stays pure scoring). Anchors: ~3 s of drift → ~2.4 s of boost; `MIN_FIRE` stops dry-firing. Finally makes drifting pay off in a race. |
+| **Per-car top speed** | `Car` got instance `throttleForce`/`topSpeed` (player keeps the defaults). Rivals run `CONFIG.AI` (≈580 px/s / ~131 mph) so they pull on straights; nitro boosts the player to ≈ the same, so you win by carrying drift speed through corners + timing boosts, not by holding the gas. Measured: rival top 586, player-with-nitro 587 — dead even on the straight, decided in the corners. |
+| **Mud rework** | No longer force-kills drift or applies one flat heavy drag. Now: light drag (`MUD_DRAG_GRIP` 0.5) when you keep it straight, the heavy scrub (`MUD_DRAG_DRIFT` 3.2) only when drifting/high-slip across it. Mud punishes greed, not a clean line. |
+| **Ice rework** | The old even grip-drop was unnoticeable. Ice now adds an *anti-recovery* yaw (`heading -= slip · ICE_SPIN`) that amplifies any slip, so the rear steps out and tries to swap ends — catchable with a full counter-steer, fatal if you don't react. Measured: same steering input gives 57° slip on ice vs 9° on asphalt. |
+| **Rectangular surfaces** | Patches can now be circles `{t,x,y,r}` (mud/boost) or tangent-aligned rects `{t,x,y,w,h}` (ice) — icy *stretches* of road instead of dots. `surfaceAt` projects into the patch's local frame for rects; `_bakeSurfaces` draws a faded frosty slab. |
+| Save version | 4 → 5 (nitro + faster AI change race pace; retire old records). |
+
+The 360 spin move is spec'd in [`docs/SPIN-MOVE.md`](docs/SPIN-MOVE.md) as a
+drop-in for later — not implemented.
+
 ## Performance notes
 
 Verified by the smoke test in **headless Chromium with software

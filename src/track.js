@@ -38,7 +38,7 @@ export const TRACK_DEFS = [
     ],
     surfaces: [
       { t: 'boost', x: 300, y: 1010, r: 66 },
-      { t: 'ice', x: -300, y: -995, r: 124 },
+      { t: 'ice', x: -300, y: -995, w: 160, h: 300 },
       { t: 'boost', x: -1500, y: 120, r: 64 },
     ],
   },
@@ -61,7 +61,7 @@ export const TRACK_DEFS = [
     surfaces: [
       { t: 'mud', x: 700, y: -300, r: 92 },
       { t: 'boost', x: 0, y: 950, r: 60 },
-      { t: 'ice', x: -1050, y: 380, r: 108 },
+      { t: 'ice', x: -1050, y: 380, w: 130, h: 260 },
     ],
   },
   {
@@ -81,8 +81,8 @@ export const TRACK_DEFS = [
       [-500, 360], [-1100, 400], [-1480, 520], [-1580, 800], [-1380, 1020],
     ],
     surfaces: [
-      { t: 'ice', x: 500, y: 1180, r: 150 },
-      { t: 'ice', x: 0, y: -1290, r: 160 },
+      { t: 'ice', x: 500, y: 1180, w: 150, h: 320 },
+      { t: 'ice', x: 0, y: -1290, w: 150, h: 340 },
       { t: 'boost', x: 2150, y: 0, r: 74 },
       { t: 'mud', x: 200, y: 350, r: 112 },
     ],
@@ -104,7 +104,7 @@ export const TRACK_DEFS = [
     surfaces: [
       { t: 'boost', x: 200, y: 1220, r: 74 },
       { t: 'boost', x: 1750, y: -350, r: 72 },
-      { t: 'ice', x: -1780, y: 0, r: 150 },
+      { t: 'ice', x: -1780, y: 0, w: 168, h: 320 },
     ],
   },
   {
@@ -124,9 +124,9 @@ export const TRACK_DEFS = [
     ],
     surfaces: [
       { t: 'mud', x: 820, y: -300, r: 86 },
-      { t: 'ice', x: 150, y: -1170, r: 132 },
+      { t: 'ice', x: 150, y: -1170, w: 140, h: 300 },
       { t: 'boost', x: -1500, y: -280, r: 66 },
-      { t: 'ice', x: -1200, y: 250, r: 96 },
+      { t: 'ice', x: -1200, y: 250, w: 138, h: 240 },
       { t: 'boost', x: 100, y: 920, r: 64 },
     ],
   },
@@ -184,16 +184,23 @@ export class Track {
   }
 
   // ---- surface patches (ice / mud / boost) ----
+  // A patch is a circle {t,x,y,r} (mud/boost) or a rect {t,x,y,w,h} oriented
+  // along the track tangent — an icy *stretch* of road (w across, h along).
   _buildSurfaces() {
     this.surfaces = (this.def.surfaces || []).map((s) => {
-      // nearest centerline tangent gives boost its shove direction
+      // nearest centerline tangent: gives boost its shove direction and rects
+      // their orientation along the road
       let best = 0, bd = 1e18;
       for (let i = 0; i < this.n; i++) {
         const dx = this.cx[i] - s.x, dy = this.cy[i] - s.y;
         const d = dx * dx + dy * dy;
         if (d < bd) { bd = d; best = i; }
       }
-      return { t: s.t, x: s.x, y: s.y, r: s.r, r2: s.r * s.r, tx: this.tx[best], ty: this.ty[best] };
+      const tx = this.tx[best], ty = this.ty[best];
+      const p = { t: s.t, x: s.x, y: s.y, tx, ty, rect: s.w != null };
+      if (p.rect) { p.w = s.w; p.h = s.h; }     // w across the road, h along it
+      else { p.r = s.r; p.r2 = s.r * s.r; }
+      return p;
     });
   }
 
@@ -201,8 +208,15 @@ export class Track {
   surfaceAt(x, y) {
     const S = this.surfaces;
     for (let i = 0; i < S.length; i++) {
-      const dx = x - S[i].x, dy = y - S[i].y;
-      if (dx * dx + dy * dy <= S[i].r2) return S[i];
+      const p = S[i], dx = x - p.x, dy = y - p.y;
+      if (p.rect) {
+        // project into the patch's local frame: along = tangent, across = normal
+        const along = dx * p.tx + dy * p.ty;
+        const across = -dx * p.ty + dy * p.tx;
+        if (Math.abs(along) <= p.h / 2 && Math.abs(across) <= p.w / 2) return p;
+      } else if (dx * dx + dy * dy <= p.r2) {
+        return p;
+      }
     }
     return null;
   }
@@ -494,22 +508,32 @@ export class Track {
     for (const s of this.surfaces) {
       if (s.t === 'boost') continue;
       if (s.t === 'ice') {
-        const grad = g.createRadialGradient(s.x, s.y, s.r * 0.1, s.x, s.y, s.r);
-        grad.addColorStop(0, 'rgba(150,232,255,0.40)');
-        grad.addColorStop(0.55, 'rgba(120,205,248,0.24)');
+        // tangent-aligned icy slab (rect), softly faded so the edge reads frosty
+        g.save();
+        g.translate(s.x, s.y);
+        g.rotate(Math.atan2(s.ty, s.tx));
+        const ex = (s.rect ? s.h : s.r * 2) / 2;   // half-length along the road
+        const ey = (s.rect ? s.w : s.r * 2) / 2;   // half-width across the road
+        const rad = Math.hypot(ex, ey);
+        const grad = g.createRadialGradient(0, 0, rad * 0.12, 0, 0, rad);
+        grad.addColorStop(0, 'rgba(150,232,255,0.42)');
+        grad.addColorStop(0.7, 'rgba(120,205,248,0.20)');
         grad.addColorStop(1, 'rgba(120,205,248,0)');
         g.fillStyle = grad;
-        g.beginPath(); g.arc(s.x, s.y, s.r, 0, Math.PI * 2); g.fill();
-        // glossy cracks
-        g.strokeStyle = 'rgba(232,250,255,0.5)';
-        g.lineWidth = 1.6;
-        for (let k = 0; k < 4; k++) {
-          const a = rnd() * Math.PI * 2, len = s.r * (0.4 + rnd() * 0.5);
+        g.fillRect(-ex, -ey, ex * 2, ey * 2);
+        g.strokeStyle = 'rgba(190,242,255,0.3)';
+        g.lineWidth = 2.5;
+        g.strokeRect(-ex, -ey, ex * 2, ey * 2);
+        g.strokeStyle = 'rgba(232,250,255,0.45)';
+        g.lineWidth = 1.5;
+        for (let k = 0; k < 6; k++) {
+          const a = rnd() * Math.PI * 2, l = 0.5 + rnd() * 0.9;
           g.beginPath();
-          g.moveTo(s.x + Math.cos(a) * s.r * 0.15, s.y + Math.sin(a) * s.r * 0.15);
-          g.lineTo(s.x + Math.cos(a) * len, s.y + Math.sin(a) * len);
+          g.moveTo(Math.cos(a) * ex * 0.12, Math.sin(a) * ey * 0.12);
+          g.lineTo(Math.cos(a) * ex * l, Math.sin(a) * ey * l);
           g.stroke();
         }
+        g.restore();
       } else if (s.t === 'mud') {
         const grad = g.createRadialGradient(s.x, s.y, s.r * 0.1, s.x, s.y, s.r);
         grad.addColorStop(0, 'rgba(74,58,32,0.82)');

@@ -38,6 +38,10 @@ export class Car {
     this.handbrake = false;
     this.steer = 0;
 
+    // per-car drive params (AI rivals raise these for a higher top speed)
+    this.throttleForce = C.THROTTLE_FORCE;
+    this.topSpeed = C.TOP_SPEED;
+
     this._driftExitT = 0;
     this._brakeLatch = false; // braking from speed stops at 0; reverse needs a fresh press
   }
@@ -54,7 +58,7 @@ export class Car {
     this._brakeLatch = false;
   }
 
-  step(dt, steer, throttle, brake, handbrake, surf) {
+  step(dt, steer, throttle, brake, handbrake, surf, boostForce = 0) {
     this.prevX = this.x; this.prevY = this.y; this.prevHeading = this.heading;
     this.throttle = throttle; this.handbrake = handbrake; this.steer = steer;
 
@@ -78,9 +82,9 @@ export class Car {
     // ---- drift state machine ----
     const absSlip = Math.abs(slip);
     const enterSlip = onIce ? SUR.ICE_DRIFT_ENTER : C.DRIFT_ENTER_SLIP;
-    if (onMud) {
-      this.drifting = false;     // mud digs the tyres in — no sliding here
-    } else if (!this.drifting) {
+    // (mud no longer force-kills the drift — you CAN slide through it, you just
+    // pay heavy drag for it; see the longitudinal section)
+    if (!this.drifting) {
       const viaBrake = handbrake && vF > C.DRIFT_MIN_SPEED * 0.55;
       const viaSlip = absSlip > enterSlip && vF > C.DRIFT_MIN_SPEED;
       if (viaBrake || viaSlip) {
@@ -108,7 +112,8 @@ export class Car {
     }
 
     let aF = 0;
-    if (throttle > 0) aF += C.THROTTLE_FORCE * throttle;
+    if (throttle > 0) aF += this.throttleForce * throttle;
+    if (boostForce) aF += boostForce;   // nitro / spin burst (heading-aligned)
     if (brake > 0) {
       if (vF > 5) aF -= C.BRAKE_FORCE * brake;          // braking
       else if (!this._brakeLatch) aF -= C.REVERSE_FORCE * brake; // reversing
@@ -126,7 +131,12 @@ export class Car {
     const resistScale = coasting ? C.COAST_DRAG_SCALE : 1;
     aF -= vF * Math.abs(vF) * C.DRAG_K * resistScale;   // quadratic drag
     aF -= vF * C.ROLL_LIN * resistScale;                // linear rolling resistance
-    if (onMud) aF -= vF * SUR.MUD_DRAG;                 // mud scrubs speed hard
+    if (onMud) {
+      // mud only really bites if you slide across it: light drag when gripping,
+      // the heavy scrub when drifting through it
+      const mudHeavy = this.drifting || absSlip > SUR.MUD_DRIFT_SLIP;
+      aF -= vF * (mudHeavy ? SUR.MUD_DRAG_DRIFT : SUR.MUD_DRAG_GRIP);
+    }
     vF += aF * dt;
 
     // braking through zero while latched parks the car instead of reversing
@@ -136,7 +146,10 @@ export class Car {
     if (Math.abs(vF) <= roll && throttle === 0 && brake === 0) vF = 0;
     else if (vF !== 0) vF -= Math.sign(vF) * roll;
     if (vF < -C.MAX_REVERSE) vF = -C.MAX_REVERSE;
-    if (onMud && vF > SUR.MUD_MAX_SPEED) vF = SUR.MUD_MAX_SPEED; // soft cap in mud
+    // soft speed cap in mud only while drifting (straight-line mud isn't capped)
+    if (onMud && (this.drifting || absSlip > SUR.MUD_DRIFT_SLIP) && vF > SUR.MUD_MAX_SPEED) {
+      vF = SUR.MUD_MAX_SPEED;
+    }
 
     // ---- lateral grip ----
     let grip = this.drifting ? C.GRIP_FULL * C.GRIP_DRIFT_FRAC : C.GRIP_FULL;
@@ -167,7 +180,7 @@ export class Car {
     // ---- steering ----
     const absF = Math.abs(vF);
     const speedFactor = Math.min(1, absF / C.STEER_REF_SPEED);   // no turning while parked
-    const hi = Math.min(1, absF / C.TOP_SPEED);
+    const hi = Math.min(1, absF / this.topSpeed);
     const damp = 1 - C.HIGH_SPEED_DAMP * hi * hi;                // calmer at top speed
     let yawAuth = C.TURN_RATE * speedFactor * damp;
     if (onIce) yawAuth *= SUR.ICE_STEER;                         // vague, washy steering
@@ -188,6 +201,11 @@ export class Car {
     let turn = steerEff * yawAuth;
     if (vF < -1) turn = -turn;                                   // mirrored in reverse
     if (this.drifting) turn += slip * C.DRIFT_ALIGN;             // recovery assist
+    // ICE: anti-recovery — rotate the heading AWAY from the velocity so any slip
+    // grows (the rear steps out and wants to swap ends). Dominates DRIFT_ALIGN,
+    // but a full counter-steer still out-yaws it, so it's catchable, not a death
+    // sentence.
+    if (onIce) turn -= slip * SUR.ICE_SPIN;
 
     this.heading += turn * dt;
     if (this.heading > Math.PI) this.heading -= TAU;
